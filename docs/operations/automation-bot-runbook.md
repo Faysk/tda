@@ -49,6 +49,12 @@ O [recibo de continuidade](backlog-continuity-2026-10-15.md) registra a reconcil
 
 **Gates mínimos:** freshness pin/exception, resolução uv, import/smoke, testes unitários e MSI/Win quando alterações alcançarem packaging. Se mudança afeta runtime HF/Whisper/Qwen, seguir runbook próprio e exigir artefato novo/impressão SHA; nunca reciclar Stable anterior.
 
+### Política proposta nos PRs #1653/#1654
+
+O candidato de configuração separa explicitamente Next, Supabase, AWS SDK/R2, React e @xyflow/react de grupos npm triviais, e Playwright, Biome, Node types, TypeScript e Vitest de updates de desenvolvimento de baixo risco. Grupos gerais só aceitam `minor`/`patch` via `update-types`; `major` fica separado por padrão. `npm`/GitHub Actions passam a triage semanal às terças; `pip` permanece diário, mas FastAPI, CUDA, Whisper e Qwen não entram no grupo `companion-test-tooling`. Os grupos CodeQL incluem tanto version updates como security updates, com `init`/`analyze` na mesma família. Os cronogramas usam `Europe/Lisbon`; cooldown de versão **não** adia PRs de segurança.
+
+Essas regras **não** resolvem automaticamente o `requirements-test.lock` customizado: #1652 continua com patch e testes próprios. Também não alteram política de release ou habilitam automerge. Ver testes `tools/ci/dependabot-policy.test.mjs` e governança #1656/#1657.
+
 ## 3. npm/Next/Supabase/R2 e Playwright (`#1653` / `#1656`)
 
 - **Next:** SSR, rotas, auth, navegação e builds são superfície crítica; ler documentação Next correspondente instalada antes de alterar código; E2E deve ser executado, não dado como skipped.
