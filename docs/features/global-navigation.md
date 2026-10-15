@@ -2,8 +2,18 @@
 
 > Status: launcher global campaign-aware em validação; QA automatizado ativo  
 > Owner: navigation / frontend / identity-access  
-> Última revisão: 2026-10-08
+> Última revisão: 2026-10-15
 > Fonte de verdade: este documento, ADR-0020, decisões #963/#1082/#1188-#1192, PR #1193, floating shell #995/#999 e guards/capabilities da `main`
+
+## Prontidão do menu após hidratação — #1729
+
+O botão global é renderizado desabilitado até o efeito inicial do cliente concluir a configuração de rota/fechamento. Isso evita aceitar um clique no HTML estático antes de React conectar os handlers. A interação posterior continua sem espera artificial; fechamento por mudança verdadeira de pathname, Escape, clique fora, foco e isolamento entre campanhas são preservados.
+
+Reprodução controlada anterior: reter os bundles JavaScript deixou o botão visível/habilitado; o clique foi enviado, mas `aria-expanded` permaneceu false. O teste novo retém os bundles no Back, exige disabled antes da hidratação e depois verifica abertura/contexto correto sem mudar timeouts. Após a correção, três cenários passaram dez repetições desktop cada (30) e hidratação/Back-Forward passaram três repetições mobile cada (6). Build e lint focado passaram; os gates remotos continuam obrigatórios no head final.
+
+Suíte global completa: 94/94 cenários desktop/mobile passaram, incluindo Escape, foco, capabilities, toque, contraste e mudança de rota. Nos dois testes de clique fora, o título estava coberto pelo painel mobile; o alvo agora é a margem externa real, sem force-click/skip/timeout maior. Capturas sintéticas desktop claro e mobile com fundos opostos foram inspecionadas. `pnpm check` passou, com os avisos preexistentes do repositório.
+
+Esse resultado confirma a lacuna de hidratação, não atribui retrospectivamente todas as falhas históricas ao mesmo mecanismo. Não foi demonstrado fechamento tardio por usePathname/popstate e nenhum efeito de fechamento foi removido para esconder essa hipótese. Trace sintético em falha permanece ativo para distinguir eventual recorrência. Ver [Playwright: hydration](https://playwright.dev/docs/navigations#hydration).
 
 ## Objetivo
 
