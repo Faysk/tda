@@ -119,3 +119,43 @@ test("accepts a real tracked source link outside docs", (t) => {
   fs.appendFileSync(path.join(root, "wiki", "Home.md"), "\n[Package](https://github.com/Faysk/tda/blob/main/package.json)");
   assert.equal(checkWiki(root).sourcesChecked, true);
 });
+
+test("spoofed host does not satisfy canonical docs and is rejected", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const home = path.join(root, "wiki", "Home.md");
+  const content = fs.readFileSync(home, "utf8");
+  fs.writeFileSync(home, content.replace(
+    "https://github.com/Faysk/tda/blob/main/docs/source.md",
+    "https://attacker.test/link/https://github.com/Faysk/tda/blob/main/docs/source.md",
+  ));
+  assert.throws(() => checkWiki(root), /misleading embedded GitHub URL|missing link to canonical/);
+});
+
+test("malicious host with official pathname cannot impersonate source", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const home = path.join(root, "wiki", "Home.md");
+  fs.writeFileSync(home, fs.readFileSync(home, "utf8")
+    .replace("https://github.com/Faysk/tda/blob/main/docs/source.md",
+      "https://github.com.evil.example/Faysk/tda/blob/main/docs/source.md"));
+  assert.throws(() => checkWiki(root), /missing link to canonical/);
+});
+
+test("official GitHub link validates the exact URL path and file", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.appendFileSync(path.join(root, "wiki", "Home.md"),
+    "\\n[Missing](https://github.com/Faysk/tda/blob/main/docs/unknown.md)");
+  assert.throws(() => checkWiki(root), /missing tracked source/);
+});
+
+test("fake sidebar host cannot satisfy navigational coverage", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, "wiki", "_Sidebar.md");
+  fs.writeFileSync(file, fs.readFileSync(file, "utf8")
+    .replace("https://github.com/Faysk/tda/wiki/Home",
+      "https://github.com.evil.example/Faysk/tda/wiki/Home"));
+  assert.throws(() => checkWiki(root), /missing from _Sidebar/);
+});

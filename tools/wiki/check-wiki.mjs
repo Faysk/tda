@@ -8,6 +8,33 @@ function fail(message) {
 	throw new Error("WIKI_GATE: " + message);
 }
 
+
+/**
+ * Check a full parsed URL, never a substring claimed to be a trusted origin.
+ * Also recognize bare URLs in prose to preserve the Wiki's existing link style.
+ */
+function pageUrls(text, page) {
+	const found = [];
+	for (const match of text.matchAll(/https?:\\/\\/[^\\s<>"')\\]]+/g)) {
+		const literal = match[0].replace(/[.,;!?]+$/, "");
+		let url;
+		try { url = new URL(literal); }
+		catch { fail("malformed URL in " + page); }
+		if (url.protocol !== "https:" && url.protocol !== "http:") fail("unsupported URL in " + page);
+		// Do not allow a fake host/path to impersonate an official source.
+		if (url.hostname !== "github.com" && literal.includes("github.com/Faysk/tda/")) {
+			fail("misleading embedded GitHub URL in " + page);
+		}
+		found.push(url);
+	}
+	return found;
+}
+
+function isRepoUrl(url, prefix) {
+	return url.protocol === "https:" && url.hostname === "github.com" &&
+		!url.username && !url.password && !url.port && url.pathname.startsWith(prefix);
+}
+
 export function checkWiki(root = defaultRoot) {
 	const wikiDir = path.join(root, "wiki");
 	const manifestPath = path.join(root, "tools", "wiki", "pages.json");
@@ -43,34 +70,46 @@ export function checkWiki(root = defaultRoot) {
 		const fences = [...text.matchAll(/^~~~(?:[a-zA-Z0-9_-]+)?\s*$/gm)];
 		if (fences.length % 2 !== 0) fail("unbalanced fenced block in " + name);
 		diagrams += [...text.matchAll(/^~~~mermaid\s*$/gm)].length;
-		for (const match of text.matchAll(/https:\/\/github\.com\/Faysk\/tda\/wiki\/([A-Za-z0-9_-]+)/g)) {
-			if (!expected.has(match[1])) fail("broken internal wiki link " + name + " -> " + match[1]);
-		}
-		// Validate every tracked repository source link, not just docs/. This also
-		// catches broken README, CONTRIBUTING and toolchain references in guides.
-		for (const match of text.matchAll(/https:\/\/github\.com\/Faysk\/tda\/blob\/main\/([A-Za-z0-9_.\/-]+)/g)) {
-			const relative = match[1];
-			const target = path.resolve(root, relative);
-			if (!target.startsWith(root + path.sep)) fail("source link escapes repository " + name + " -> " + relative);
-			if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
-				fail("missing tracked source " + name + " -> " + relative);
+		const urls = pageUrls(text, name);
+		const sourcePrefix = "/Faysk/tda/blob/main/";
+		const wikiPrefix = "/Faysk/tda/wiki/";
+		let hasCanonicalDoc = false;
+		for (const url of urls) {
+			if (isRepoUrl(url, wikiPrefix)) {
+				const slug = decodeURIComponent(url.pathname.slice(wikiPrefix.length));
+				if (!expected.has(slug)) fail("broken internal wiki link " + name + " -> " + slug);
+			}
+			if (isRepoUrl(url, sourcePrefix)) {
+				const relative = decodeURIComponent(url.pathname.slice(sourcePrefix.length));
+				const target = path.resolve(root, relative);
+				if (!relative || !target.startsWith(root + path.sep)) {
+					fail("source link escapes repository " + name + " -> " + relative);
+				}
+				if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+					fail("missing tracked source " + name + " -> " + relative);
+				}
+				if (relative.startsWith("docs/")) hasCanonicalDoc = true;
 			}
 		}
 		for (const match of text.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {
 			if (!match[1].trim()) fail("image without alt text in " + name);
 			if (!manifest.approvedMedia.includes(match[2])) fail("image URL not allowlisted in " + name);
 		}
-		if (!name.startsWith("_") && !text.includes("https://github.com/Faysk/tda/blob/main/docs/")) {
+		if (!name.startsWith("_") && !hasCanonicalDoc) {
 			fail("wiki page missing link to canonical documentation: " + name);
 		}
 	}
-	const sidebar = texts.get("_Sidebar");
-	const index = texts.get("Indice");
+	const sidebar = new Set(pageUrls(texts.get("_Sidebar"), "_Sidebar")
+		.filter((url) => isRepoUrl(url, "/Faysk/tda/wiki/"))
+		.map((url) => decodeURIComponent(url.pathname)));
+	const index = new Set(pageUrls(texts.get("Indice"), "Indice")
+		.filter((url) => isRepoUrl(url, "/Faysk/tda/wiki/"))
+		.map((url) => decodeURIComponent(url.pathname)));
 	for (const name of expected) {
 		if (name.startsWith("_") || name === "Indice") continue;
-		const url = "https://github.com/Faysk/tda/wiki/" + name;
-		if (!sidebar.includes(url)) fail("missing from _Sidebar: " + name);
-		if (!index.includes(url)) fail("missing from Indice: " + name);
+		const canonical = "/Faysk/tda/wiki/" + name;
+		if (!sidebar.has(canonical)) fail("missing from _Sidebar: " + name);
+		if (!index.has(canonical)) fail("missing from Indice: " + name);
 	}
 	return { pages: actual.size, diagrams, sourcesChecked: true, mediaApproved: manifest.approvedMedia.length };
 }
