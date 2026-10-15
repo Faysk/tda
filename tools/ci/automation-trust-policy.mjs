@@ -19,8 +19,7 @@ const required = {
     "persist-credentials: false",
   ],
   "deploy-main-preview.yml": [
-    "github.event.workflow_run.event == 'push'",
-    "github.event.workflow_run.head_branch == 'main'",
+    "github.event_name == 'workflow_dispatch'",
     "MAIN_PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED",
     'if [[ "$SOURCE_SHA" != "$CURRENT_SHA" ]]',
     "persist-credentials: false",
@@ -140,6 +139,11 @@ export function auditBotTrust(sources) {
       }
     }
   }
+  const mainPreview = sources["deploy-main-preview.yml"];
+  if (typeof mainPreview === "string" &&
+      (/^\s*workflow_run\s*:/m.test(mainPreview) || /^\s*push\s*:/m.test(mainPreview) ||
+       inlineTriggers(mainPreview).has("workflow_run") || inlineTriggers(mainPreview).has("push")))
+    violations.push("deploy-main-preview.yml: forbidden automatic deployment trigger");
   const production = sources["production-cd.yml"];
   if (typeof production === "string" &&
       (/^\s*workflow_run\s*:/m.test(production) || /^\s*push\s*:/m.test(production) ||

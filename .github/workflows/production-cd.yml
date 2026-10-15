@@ -120,6 +120,12 @@ jobs:
           console.log(`PRODUCTION_EXACT_MAIN_CI_OK ${process.env.SOURCE_SHA}`);
           NODE
 
+      - name: Require newest exact main CI receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: node tools/ci/require-main-ci.mjs
+
       - name: Require exact main CodeQL Python and JS/TS evidence
         shell: bash
         env:

@@ -18,7 +18,7 @@
 
 ## Continuidade verificada em 15/10/2026
 
-O [recibo de continuidade](backlog-continuity-2026-10-15.md) registra a reconciliação dos candidatos, testes, todos os PRs/issues abertos, lifecycle remoto e gaps de proteção agora legíveis pela API. O snapshot anterior de 403 permanece histórico. Sem merge/publicação ou alteração administrativa.
+O [recibo de continuidade](backlog-continuity-2026-10-15.md) registra a reconciliação dos candidatos, testes, todos os PRs/issues abertos, lifecycle remoto e gaps de proteção agora legíveis pela API. O snapshot anterior de 403 permanece histórico. Sem merge/publicação. O recibo distingue as alterações administrativas já aplicadas (checks estritos e alertas) e o hold Main Preview, da candidata de código ainda não integrada.
 
 ## 1. Triagem diária (procedimento humano hoje)
 
@@ -270,3 +270,7 @@ Contrato mínimo por mudança: PR + SHA, diff/manifest/lock, relatório de risco
 - [GitHub — automating Dependabot](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/automate-dependabot-with-actions).
 
 **Atualização deste runbook deve acompanhar PRs que mudam scripts de bot, regras de avaliação, gatilhos, fluxos de release ou caminhos de recuperação.**
+
+### Operação individual e gates atuais — 15/10/2026
+
+O owner mantém o repositório sozinho: zero aprovações permanece deliberado, mas main agora exige branch atualizada e required-ci + ambas as linguagens CodeQL do app GitHub Actions. Os alertas Dependabot estão habilitados. Main Preview está em hold remoto até integrar sua configuração manual-only; jamais reabilitar o gatilho automático anterior. O [recibo](backlog-continuity-2026-10-15.md) contém origem, pós-validação, impacto e recuperação.

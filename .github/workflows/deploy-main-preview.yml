@@ -1,9 +1,6 @@
 name: Deploy Main Preview
 
 on:
-  workflow_run:
-    workflows: [CI, CodeQL]
-    types: [completed]
   workflow_dispatch:
     inputs:
       source_sha:
@@ -28,17 +25,7 @@ env:
 jobs:
   preview:
     name: validated-main-preview
-    if: >-
-      ${{
-        github.event_name == 'workflow_dispatch' ||
-        (
-          (github.event.workflow_run.name == 'CI' || github.event.workflow_run.name == 'CodeQL') &&
-          github.event.workflow_run.event == 'push' &&
-          github.event.workflow_run.head_branch == 'main' &&
-          github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.head_repository.full_name == github.repository
-        )
-      }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment:
@@ -53,11 +40,7 @@ jobs:
           REQUESTED_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            SOURCE_SHA="$REQUESTED_SHA"
-          else
-            SOURCE_SHA="$(node -e 'const e=require(process.env.GITHUB_EVENT_PATH); process.stdout.write(e.workflow_run?.head_sha || "")')"
-          fi
+          SOURCE_SHA="$REQUESTED_SHA"
           if [[ ! "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
             echo "::error::Preview source must be an exact commit SHA"
             exit 1
@@ -105,6 +88,12 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           mkdir -p .vercel
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+
+      - name: Require newest exact-main CI before Production-parity Preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: node tools/ci/require-main-ci.mjs
 
       - name: Require exact-main CodeQL before Production-parity Preview
         shell: bash

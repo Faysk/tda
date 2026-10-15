@@ -108,3 +108,11 @@ test("Production rejects flow-style automatic push and workflow_run triggers", (
       /production-cd\.yml: forbidden automatic Production trigger/);
   }
 });
+
+test("Main Preview cannot be reactivated through block or inline automatic triggers", () => {
+  for (const trigger of ["on: [workflow_dispatch, push]", "on: { workflow_dispatch: {}, workflow_run: {} }",
+    "on:\n  push:", "on:\n  workflow_run:"]) {
+    const changed = mutate("deploy-main-preview.yml", (v) => v.replace("on:\n  workflow_dispatch:", trigger + "\n  workflow_dispatch:"));
+    assert.match(auditBotTrust(changed).join("\n"), /forbidden automatic deployment trigger/);
+  }
+});

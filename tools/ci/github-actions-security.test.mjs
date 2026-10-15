@@ -314,10 +314,10 @@ test("Production checks the exact-main CodeQL matrix before human confirmation o
 test("every main release candidate reaches Preview before an explicit Production approval", () => {
   const mainPreview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
   const production = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
-  assert.match(mainPreview, /workflow_run:/);
-  assert.match(mainPreview, /workflows:\s*\[CI, CodeQL\]/);
+  assert.doesNotMatch(mainPreview, /^\s*workflow_run:/m);
+  assert.doesNotMatch(mainPreview, /^\s*push:/m);
   assert.match(mainPreview, /workflow_dispatch:/);
-  assert.match(mainPreview, /head_branch == 'main'/);
+  assert.match(mainPreview, /github.event_name == 'workflow_dispatch'/);
   assert.match(mainPreview, /MAIN_PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED/);
   assert.match(mainPreview, /SOURCE_SHA.*CURRENT_SHA/);
   assert.match(mainPreview, /environment:\s*\n\s+name: preview/);
@@ -369,14 +369,10 @@ test("navigation regression failures upload a scoped synthetic Playwright trace"
 
 test("Main Preview requires latest same-SHA main CodeQL before Production-parity build", () => {
   const preview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
-  assert.ok(preview.includes("workflows: [CI, CodeQL]"),
-    "the later of CI and CodeQL must be able to trigger reviewed Preview");
-  assert.ok(preview.includes("github.event.workflow_run.name == 'CI'"));
-  assert.ok(preview.includes("github.event.workflow_run.name == 'CodeQL'"));
-  assert.ok(preview.includes("github.event.workflow_run.event == 'push'"));
-  assert.ok(preview.includes("github.event.workflow_run.head_branch == 'main'"));
-  assert.ok(preview.includes("github.event.workflow_run.conclusion == 'success'"));
-  assert.ok(preview.includes("github.event.workflow_run.head_repository.full_name == github.repository"));
+  assert.doesNotMatch(preview, /^\s*workflow_run:/m);
+  assert.doesNotMatch(preview, /^\s*push:/m);
+  assert.ok(preview.includes("github.event_name == 'workflow_dispatch'"));
+  assert.ok(preview.includes("node tools/ci/require-main-ci.mjs"));
   assert.ok(preview.includes("MAIN_PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED"));
   assert.ok(preview.includes("Require exact-main CodeQL before Production-parity Preview"));
   assert.ok(preview.includes("node tools/ci/require-main-codeql.mjs"));
