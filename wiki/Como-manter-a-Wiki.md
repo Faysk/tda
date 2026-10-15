@@ -39,3 +39,8 @@ Além disso, **validado**, **integrado à main** e **publicado/aplicado** não s
 **Referências:** [Documentação viva](https://github.com/Faysk/tda/blob/main/docs/documentation/README.md) · [Issues](https://github.com/Faysk/tda/blob/main/docs/delivery/issue-governance.md) · [Epic #1745](https://github.com/Faysk/tda/issues/1745)
 
 [Início da Wiki](https://github.com/Faysk/tda/wiki/Home) · [Índice](https://github.com/Faysk/tda/wiki/Indice)
+
+
+## Testar se alguém aprendeu sem ajuda
+
+A revisão editorial inclui [um roteiro público de aceite por persona](https://github.com/Faysk/tda/blob/main/tools/wiki/REVIEW_CHECKLIST.md): visitante, jogador, editor, operador e contribuidor. Antes de publicar, devem ser verificados os tutoriais no GitHub Wiki real, em desktop/mobile e com navegação por teclado. **Sem isso, Markdown válido não equivale a Wiki aprovada**.
