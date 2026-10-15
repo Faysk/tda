@@ -12,6 +12,8 @@ O código consolidado está em `f5bf46fd168dd17a6ddad7c3930257d1fdac5ff1`, com C
 
 O baseline público observado antes desta entrega é `d3f41c1db820444969484693b72c2a9fde9a2086` (`Prod_1.0.0`). O intervalo até o código validado não contém migrations ou mídia canônica nova. Os receipts deste documento entram por PR; após a integração, o SHA novo precisa de CI, CodeQL e Main Preview próprios antes do Production CD. A publicação final e seu número de release devem ser consultados no receipt do workflow e em `/api/version`, sem inferir deploy de um merge.
 
+O primeiro Production CD posterior aos receipts ([38729121317](https://github.com/Faysk/tda/actions/runs/38729121317)) abortou antes de staging ou alteração de tráfego: o gate confundia o ator humano de um dispatch com a proveniência do deployment. O Preview `7091511646` tinha source/ref/environment corretos, status de sucesso e `performed_via_github_app` GitHub Actions, mas `creator.login` era o mantenedor. A correção verifica o aplicativo confiável e conserva todos os gates de identidade, CI, CodeQL, Preview e aprovação; a nova entrega deve repetir o fluxo completo no SHA corrigido.
+
 ## Runtimes Stable
 
 Os candidatos fisicamente aceitos foram promovidos sem rebuild ou substituição de bytes:

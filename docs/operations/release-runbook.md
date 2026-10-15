@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release
-> Última revisão: 2026-10-09
+> Última revisão: 2026-10-15
 > Fonte de verdade: CI/CD, environments e providers atuais
 
 Este runbook é genérico. Checklists de uma feature específica pertencem ao documento da feature ou ao histórico da release, não aqui.
@@ -40,6 +40,8 @@ Preview é deployment Vercel, não branch. O TDA tem **dois níveis**:
 2. `deploy-main-preview.yml` cria um **staged Production build** para o **SHA exato da main** após CI push verde, usando **o mesmo ambiente Vercel Production e a mesma base Supabase/R2**, mas com `--prod --skip-domain`: não muda o domínio `dnd.faysk.dev`. O receipt aparece no [GitHub → Deployments → preview](https://github.com/Faysk/tda/deployments/preview).
 
 O PR Preview usa configuração Preview separada e não é prova de paridade com Production. Já o Main Preview usa configuração e **infraestrutura compartilhadas** com Production, sem clonar banco nem buckets. A URL staged é protegida e **read-only**: o proxy bloqueia métodos HTTP mutáveis fora do hostname canônico; CI apenas lê. R2 privado e flags injetados **somente** pelo GitHub Environment `production` continuam a ser verificados no estágio final do Production CD; um Main Preview verde não prova operações de escrita nem aplicação de migrations.
+
+O receipt GitHub Environment de um dispatch manual pode registrar o mantenedor em `creator.login`. O gate de Production verifica a proveniência pelo aplicativo GitHub Actions (`performed_via_github_app.id = 15368`, slug `github-actions`), além do SHA exato, ref `main`, environment `preview`, run aprovado, status mais recente de sucesso e identidade HTTP do deployment. Um login de bot isolado não comprova essa proveniência; receipt manual sem o aplicativo confiável é rejeitado. Rollback desta verificação: reverter o helper e sua chamada, mantendo a publicação bloqueada até a correção, sem fabricar receipt ou remover o gate.
 
 Validar:
 

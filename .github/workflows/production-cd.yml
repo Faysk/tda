@@ -156,6 +156,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$SOURCE_SHA&environment=preview&per_page=100" > main-preview-deployments.json
           node --input-type=module - <<'NODE'
           import fs from "node:fs";
+          import { trustedMainPreviewDeployments } from "./tools/ci/main-preview-deployments.mjs";
           const source = process.env.SOURCE_SHA;
           const runs = JSON.parse(fs.readFileSync("main-preview-runs.json", "utf8")).workflow_runs || [];
           if (!runs.some((run) =>
@@ -166,9 +167,7 @@ jobs:
             throw new Error("PRODUCTION_SUCCESSFUL_MAIN_PREVIEW_RUN_REQUIRED");
           }
           const deployments = JSON.parse(fs.readFileSync("main-preview-deployments.json", "utf8"));
-          const matches = deployments.filter((d) =>
-            d.sha === source && d.environment === "preview" &&
-            d.ref === "main" && ["github-actions[bot]", "github-actions"].includes(d.creator?.login));
+          const matches = trustedMainPreviewDeployments(deployments, source);
           if (!matches.length) throw new Error("PRODUCTION_EXACT_MAIN_PREVIEW_DEPLOYMENT_REQUIRED");
           fs.writeFileSync("preview-deployment-ids.txt", matches.map((d) => d.id).join("\n") + "\n");
           NODE
