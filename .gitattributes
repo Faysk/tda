@@ -1,0 +1,5 @@
+# Workflow contracts and POSIX runner scripts require stable LF checkouts.
+.github/workflows/*.yml text eol=lf
+.github/workflows/*.yaml text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf

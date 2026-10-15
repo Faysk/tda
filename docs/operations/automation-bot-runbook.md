@@ -16,6 +16,10 @@
 6. **Não mexer em dados privados.** Nenhuma gravação, áudio Craig real, logs sensíveis, tabelas produtivas ou R2 necessário neste runbook.
 7. **Produção deliberada.** `production-cd.yml` atual só por `workflow_dispatch`, com revisão/confirm explícitos. Preview automático de PR não autoriza promoção.
 
+## Continuidade verificada em 15/10/2026
+
+O [recibo de continuidade](backlog-continuity-2026-10-15.md) registra a reconciliação dos candidatos, testes, todos os PRs/issues abertos, lifecycle remoto e gaps de proteção agora legíveis pela API. O snapshot anterior de 403 permanece histórico. Sem merge/publicação ou alteração administrativa.
+
 ## 1. Triagem diária (procedimento humano hoje)
 
 1. Abrir [Pull Requests](https://github.com/Faysk/tda/pulls) filtrando `author:app/dependabot`; registrar PR/head SHA, bibliotecas, semver, risco, CI e segurança.

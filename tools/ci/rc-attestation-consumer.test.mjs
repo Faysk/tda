@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, writeFileSync, rmSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { createHash } from "node:crypto";
 import {
   SIGNERS, POLICY, validateExpected, validateManifestIdentity,
@@ -26,7 +26,7 @@ function attested(file, edit = (x) => x) {
   const hash = createHash("sha256").update(readFileSync(file)).digest("hex");
   const envelope = [{ verificationResult: { statement: {
     predicateType: "https://slsa.dev/provenance/v1",
-    subject: [{ name: file.split("/").at(-1), digest: { sha256: hash } }],
+    subject: [{ name: basename(file), digest: { sha256: hash } }],
   } } }];
   return JSON.stringify(edit(envelope));
 }
