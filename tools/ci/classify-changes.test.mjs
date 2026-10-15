@@ -53,7 +53,7 @@ test("global Next routing/security config and Node version force all Web gates",
     web: true, navigation: true, db: true, companion: false,
     processing: true, lembra: true, sessions: true, media: true,
   };
-  for (const path of ["next.config.ts", ".node-version", "src/proxy.ts", "vercel.json",
+  for (const path of ["next.config.ts", ".node-version", ".nvmrc", "src/proxy.ts", "vercel.json",
     ".vercelignore", "vitest.config.ts", "tsconfig.json"])
     assert.deepEqual(flags([path]), webExpected, path);
   assert.deepEqual(flags(["docs/next-config.md"]), fastOnly);
