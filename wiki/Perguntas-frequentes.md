@@ -4,6 +4,12 @@
 
 Não. Basta entender que uma campanha é uma história em grupo, uma sessão é um encontro e personagens são pessoas ou figuras desse mundo. Veja [a introdução](https://github.com/Faysk/tda/wiki/Comece-aqui).
 
+
+
+### Onde está o menu de personagens, NPCs ou ferramentas?
+
+Abra o **avatar** no canto superior direito. Em **Explorar → Mundo** estão os destinos de personagens e NPCs. **Ferramentas** só aparece quando sua conta e a campanha possuem permissões adequadas. A marca leva à Home. Veja [o guia do menu](https://github.com/Faysk/tda/wiki/Usando-o-TDA).
+
 ### Preciso de conta?
 
 Informações explicitamente públicas não exigem login. Ações editoriais e bibliotecas com controle de acesso exigem autenticação e permissões. Veja [o uso do site](https://github.com/Faysk/tda/wiki/Usando-o-TDA).

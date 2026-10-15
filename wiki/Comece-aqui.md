@@ -30,6 +30,12 @@ flowchart TD
 
 **Importante:** o desenho ensina uma jornada de navegação; os dados disponíveis no site podem variar.
 
+
+
+## Se não encontrar o menu
+
+O TDA usa o **avatar no canto superior direito** para abrir um painel com **Explorar, Ferramentas autorizadas e Conta e preferências**. Campanhas e Sessões ficam em Explorar; Personagens e NPCs ficam dentro de **Mundo** (segunda camada). A marca do canto superior esquerdo leva à Home. Para o passo a passo completo, consulte [Como usar o menu do TDA](https://github.com/Faysk/tda/wiki/Usando-o-TDA).
+
 ## 3. Preciso entrar com uma conta?
 
 Para conteúdos públicos, não necessariamente. Ferramentas de edição, algumas bibliotecas e ações administrativas exigem autenticação e **capabilities**, isto é, permissões concedidas para ações e campanhas específicas. Entrar com uma conta não torna você automaticamente editor.
