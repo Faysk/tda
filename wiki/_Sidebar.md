@@ -6,6 +6,7 @@
 - [❔ Perguntas frequentes](https://github.com/Faysk/tda/wiki/Perguntas-frequentes)
 
 ### 📜 Histórias e campanhas
+- [🗺️ Campanhas e rotas](https://github.com/Faysk/tda/wiki/Rotas-e-campanhas)
 - [📅 Campanhas e sessões](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes)
 - [🌍 Mundo e entidades](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
 - [🎨 Lores e Lembra](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
@@ -18,6 +19,10 @@
 - [🔐 Segurança e acesso](https://github.com/Faysk/tda/wiki/Seguranca-e-permissoes)
 - [🗄️ Banco e modelo de dados](https://github.com/Faysk/tda/wiki/Banco-e-modelo-de-dados)
 - [🖼️ Mídia e assets](https://github.com/Faysk/tda/wiki/Midia-e-assets)
+
+- [🎙️ Múltiplas gravações](https://github.com/Faysk/tda/wiki/Multiplas-gravacoes)
+- [📊 Qualidade de ASR](https://github.com/Faysk/tda/wiki/Qualidade-ASR)
+- [🧰 Recuperação e exclusão](https://github.com/Faysk/tda/wiki/Resultados-locais-e-exclusao)
 
 ### 🧱 Tecnologia
 - [🏗️ Arquitetura](https://github.com/Faysk/tda/wiki/Arquitetura)

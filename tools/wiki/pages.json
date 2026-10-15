@@ -24,7 +24,11 @@
     "Banco-e-modelo-de-dados",
     "Midia-e-assets",
     "ADRs-e-decisoes",
-    "Funcionalidades-e-estados"
+    "Funcionalidades-e-estados",
+    "Multiplas-gravacoes",
+    "Qualidade-ASR",
+    "Resultados-locais-e-exclusao",
+    "Rotas-e-campanhas"
   ],
   "approvedMedia": [
     "https://media.dnd.faysk.dev/brand/59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e/favicon.svg"

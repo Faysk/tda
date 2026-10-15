@@ -13,7 +13,12 @@ Use este índice quando não souber onde procurar. Ele cobre as páginas públic
 - [Panorama de funcionalidades e maturidade](https://github.com/Faysk/tda/wiki/Funcionalidades-e-estados)
 - [Perguntas frequentes](https://github.com/Faysk/tda/wiki/Perguntas-frequentes)
 
+- [Rotas de campanha e links](https://github.com/Faysk/tda/wiki/Rotas-e-campanhas)
+
 ## 🤖 Edit e inteligência artificial
+- [🎙️ Múltiplas gravações](https://github.com/Faysk/tda/wiki/Multiplas-gravacoes)
+- [📊 Qualidade de ASR](https://github.com/Faysk/tda/wiki/Qualidade-ASR)
+- [🧰 Recuperação e exclusão](https://github.com/Faysk/tda/wiki/Resultados-locais-e-exclusao)
 
 - [Processamento, revisão e publicação](https://github.com/Faysk/tda/wiki/Edit-e-revisao)
 - [Companion, Qwen e Whisper](https://github.com/Faysk/tda/wiki/Companion-e-IA)
