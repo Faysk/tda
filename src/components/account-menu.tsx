@@ -157,6 +157,7 @@ function DrilldownCell({
 
 export function AccountMenu() {
 	const pathname = usePathname();
+	const [interactive, setInteractive] = useState(false);
 	const [phase, setPhase] = useState<PanelPhase>("closed");
 	const [view, setView] = useState<PanelView>("root");
 	const [projection, setProjection] = useState<NavigationAuthProjection | null>(
@@ -291,6 +292,7 @@ export function AccountMenu() {
 
 	useEffect(() => {
 		close(false);
+		setInteractive(true);
 		setView("root");
 		rootScrollTopRef.current = 0;
 		setAvatarFailed(false);
@@ -375,6 +377,7 @@ export function AccountMenu() {
 				aria-label="Abrir menu global"
 				aria-expanded={expanded}
 				aria-controls={PANEL_ID}
+				disabled={!interactive}
 				onClick={toggle}
 			>
 				<span className="account-avatar">

@@ -644,6 +644,35 @@ test("campaign-scoped public routes select the matching tool context and keep cu
 	).toHaveAttribute("href", "/edit/antes-que-seja-tarde/permissions");
 });
 
+test("global menu waits for hydration after browser history navigation", async ({ page }) => {
+	await mockAccess(page, { campaigns: [
+		{ technicalSlug: "yuhara-main", routeKey: "cronicas-da-mesa", name: "Crônicas da Mesa", capabilities: ["campaign.permissions.manage"] },
+		{ technicalSlug: "antes-que-seja-tarde", routeKey: "antes-que-seja-tarde", name: "Antes que seja tarde", capabilities: ["campaign.permissions.manage"] },
+	] });
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes");
+	await expect(page.getByRole("button", { name: "Abrir menu global" })).toBeEnabled();
+	await page.goto("/campanhas/antes-que-seja-tarde/sessoes");
+	await expect(page.getByRole("button", { name: "Abrir menu global" })).toBeEnabled();
+	let releaseScripts!: () => void;
+	const scriptsReady = new Promise<void>((resolve) => { releaseScripts = resolve; });
+	await page.route("**/_next/static/**/*.js", async (route) => {
+		await scriptsReady;
+		await route.continue();
+	});
+	try {
+		await page.goBack({ waitUntil: "commit" });
+		const trigger = page.getByRole("button", { name: "Abrir menu global" });
+		await expect(trigger).toBeVisible();
+		await expect(trigger).toBeDisabled();
+		releaseScripts();
+		await expect(trigger).toBeEnabled();
+		const panel = await openGlobalMenu(page);
+		await expect(panel.getByRole("button", { name: "Campanha das ferramentas" })).toContainText("Crônicas da Mesa");
+	} finally {
+		releaseScripts();
+	}
+});
+
 test("browser history restores the campaign context from scoped public routes", async ({ page }) => {
 	await mockAccess(page, {
 		campaigns: [
@@ -793,13 +822,15 @@ test("keyboard, outside click and pathname changes dismiss the unified panel", a
 	await mockAccess(page);
 	await page.goto("/sessoes");
 	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	await expect(trigger).toBeEnabled();
 	await trigger.focus();
 	await page.keyboard.press("Enter");
 	await expect(page.getByRole("region", { name: "Navegação, conta e aparência" })).toBeVisible();
 	await page.keyboard.press("Escape");
 	await expect(trigger).toBeFocused();
 	await page.keyboard.press("Space");
-	await page.getByRole("heading", { level: 1 }).click();
+	// The heading is covered by the mobile panel; use the actual outside gutter.
+	await page.mouse.click(1, 1);
 	await expect(trigger).toHaveAttribute("aria-expanded", "false");
 
 	const panel = await openGlobalMenu(page);
@@ -837,7 +868,7 @@ test("unified panel motion is reversible, inert while closing and unmounts after
 	await expect(panel).toHaveCount(1);
 	await expect(panel).toHaveAttribute("data-state", /opening|open/u);
 
-	await page.getByRole("heading", { level: 1 }).click();
+	await page.mouse.click(1, 1);
 	await expect(trigger).toHaveAttribute("aria-expanded", "false");
 	await expect(panel).toHaveAttribute("data-state", "closing");
 	await expect(panel).toHaveCount(0, { timeout: 3_000 });
