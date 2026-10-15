@@ -86,3 +86,20 @@ test("approves exact images only when alt and manifest match", (t) => {
   fs.appendFileSync(path.join(root, "wiki", "Home.md"), "\n![Approved illustration](https://example.test/approved.png)");
   assert.equal(checkWiki(root).mediaApproved, 1);
 });
+
+test("rejects symlink pages even if the linked bytes are plausible", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const home = path.join(root, "wiki", "Home.md");
+  fs.copyFileSync(home, path.join(root, "docs", "source.md"));
+  fs.unlinkSync(home);
+  fs.symlinkSync(path.join(root, "docs", "source.md"), home);
+  assert.throws(() => checkWiki(root), /regular files, not symlinks/);
+});
+
+test("rejects inline SVG/HTML as an image allowlist bypass", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.appendFileSync(path.join(root, "wiki", "Home.md"), "\n<svg xmlns='http://www.w3.org/2000/svg'></svg>");
+  assert.throws(() => checkWiki(root), /active HTML forbidden/);
+});

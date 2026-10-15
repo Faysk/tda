@@ -29,12 +29,14 @@ export function checkWiki(root = defaultRoot) {
 	let diagrams = 0;
 	for (const name of actual) {
 		if (!expected.has(name)) fail("unapproved wiki page: " + name);
-		const text = fs.readFileSync(path.join(wikiDir, name + ".md"), "utf8");
+		const pageFile = path.join(wikiDir, name + ".md");
+		if (!fs.lstatSync(pageFile).isFile()) fail("wiki pages must be regular files, not symlinks: " + name);
+		const text = fs.readFileSync(pageFile, "utf8");
 		texts.set(name, text);
 		if (!text.trim() || text.length < 70) fail("empty or short page: " + name);
 		const headings = [...text.matchAll(/^# (.+)$/gm)].length;
 		if (!name.startsWith("_") && headings !== 1) fail("exactly one H1 required in " + name);
-		if (/<\s*(script|iframe|object|style|img|video|audio|embed)\b/i.test(text)) fail("active HTML forbidden in " + name);
+		if (/<\s*(script|iframe|object|style|img|video|audio|embed|svg|link|meta|picture|source|form|input|button)\b/i.test(text)) fail("active HTML forbidden in " + name);
 		if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|github_pat_[A-Za-z0-9_]{12,}|ghp_[A-Za-z0-9]{20,}/i.test(text)) {
 			fail("credential signature detected in " + name);
 		}

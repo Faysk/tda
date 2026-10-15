@@ -59,3 +59,5 @@ Antes do uso real, validar origem do clone Git, branch da Wiki, situação sem m
 ## Alertas de impacto ao atualizar documentação canônica
 
 O comando `pnpm wiki:impact` compara os Markdown alterados entre `origin/main` e o HEAD local (é necessário ter o ref do Git atualizado) e lista quais páginas da Wiki apontam para essas fontes. Ele **não modifica a Wiki** e não afirma automaticamente desatualização: um dono deve julgar se houve alteração de contrato que exige reescrever o guia. Páginas sem referências também aparecem como lacuna potencial de cobertura. Em mudanças já integradas na main, forneça uma base mais antiga com `node tools/wiki/impact.mjs --base <sha-conhecido>`.
+
+**Proteções adicionais:** `--apply` também exige que o checkout de origem esteja limpo e que `--source-sha` corresponda exatamente ao commit Git nesse checkout; uma SHA inventada ou um arquivo local ainda não revisado interrompe o preparo. Páginas que sejam links simbólicos são rejeitadas pelo gate de publicação. A execução remota continua dependendo de revisão humana e permissões separadas.

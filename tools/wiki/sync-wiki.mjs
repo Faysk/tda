@@ -132,6 +132,22 @@ function verifyClone(targetDir) {
   }
 }
 
+
+function verifySourceRevision(sourceDir, sourceSha) {
+  let actual;
+  try {
+    actual = git(sourceDir, "rev-parse", "HEAD");
+  } catch {
+    reject("source folder is not a valid Git checkout");
+  }
+  if (actual !== sourceSha) {
+    reject("source SHA does not match the checked-out Git commit");
+  }
+  if (git(sourceDir, "status", "--porcelain", "--untracked-files=all")) {
+    reject("source Git checkout is dirty; commit/review changes before staging");
+  }
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const idx = argv.indexOf("--wiki-dir");
@@ -142,6 +158,7 @@ function main() {
   const targetDir = path.resolve(argv[idx + 1]);
   verifyClone(targetDir);
   const apply = argv.includes("--apply");
+  if (apply) verifySourceRevision(rootDefault, shaIdx >= 0 ? argv[shaIdx + 1] : "");
   const plan = apply
     ? applyWikiSync(rootDefault, targetDir, shaIdx >= 0 ? argv[shaIdx + 1] : "")
     : planWikiSync(rootDefault, targetDir);
