@@ -28,3 +28,26 @@ A pasta `wiki/` contém exclusivamente páginas públicas autorizadas. O reposit
 A #1761 deve estudar automação controlada com credencial de menor privilégio, disparo deliberado e detecção de conflitos, **sem expor tokens em pull requests externas**. Um evento automático em toda atualização de `main` não deve publicar conteúdo sem revisão nem marcar feature como entregue.
 
 Não criar VitePress, Docusaurus, GitHub Pages ou outro domínio. A documentação viva e os recibos de release dos produtos não são substituídos por esta Wiki.
+
+## Sincronização controlada (proposta implementada em fonte)
+
+O utilitário `tools/wiki/sync-wiki.mjs` valida a allowlist antes de qualquer ação. Sua operação normal é **somente planejamento**, sem escrita:
+
+```bash
+git clone https://github.com/Faysk/tda.wiki.git ../tda-wiki
+node tools/wiki/sync-wiki.mjs --wiki-dir ../tda-wiki
+```
+
+Se o comando detectar uma página existente com conteúdo diferente de uma versão previamente gerenciada, **interrompe** a operação: edições feitas diretamente na aba Wiki precisam ser reconciliadas manualmente. Páginas desconhecidas ficam preservadas; não existe exclusão automática.
+
+Após aprovação e com `main` no SHA exato da fonte, um mantenedor pode **preparar arquivos locais**, sem commit nem push automático:
+
+```bash
+node tools/wiki/sync-wiki.mjs --wiki-dir ../tda-wiki --source-sha <COMMIT_SHA_40_HEX> --apply
+git -C ../tda-wiki diff --check
+git -C ../tda-wiki diff
+```
+
+**Não execute o comando acima se a Wiki não tiver sido inicializada ou a PR ainda não tiver sido aprovada.** O parâmetro `--apply` escreve somente no clone local autorizado. Um arquivo `.tda-wiki-sync-state.json` guarda checksums dos arquivos gerenciados e o SHA de origem; não há credenciais nesse arquivo. Revisão humana, commit, push e readback são passos separados.
+
+Antes do uso real, validar origem do clone Git, branch da Wiki, situação sem modificações locais, política de token e efeitos da presença do arquivo de estado no renderer do GitHub. `--apply` não resolve alterações concorrentes entre o preparo e o push; usar push não forçado e conferir commit remoto antes de promover. A versão posterior poderá ter workflow manual com permissão mínima, se aprovado.
