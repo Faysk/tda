@@ -10,6 +10,7 @@
 - [🗺️ Campanhas e rotas](https://github.com/Faysk/tda/wiki/Rotas-e-campanhas)
 - [🌍 Mundo e entidades](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
 - [🧭 World Explorer passo a passo](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer)
+- [🔭 Recursos narrativos em evolução](https://github.com/Faysk/tda/wiki/Recursos-narrativos-em-evolucao)
 - [🎨 Lores e Lembra](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
 - [📜 Entender publicação de lore](https://github.com/Faysk/tda/wiki/Publicar-uma-Lore)
 - [🖼️ Usar o Lembra](https://github.com/Faysk/tda/wiki/Usar-o-Lembra)
@@ -20,6 +21,7 @@
 - [🤖 Companion e ASR](https://github.com/Faysk/tda/wiki/Companion-e-IA)
 - [🎙️ Múltiplas gravações](https://github.com/Faysk/tda/wiki/Multiplas-gravacoes)
 - [📊 Qualidade de ASR](https://github.com/Faysk/tda/wiki/Qualidade-ASR)
+- [📈 Estatísticas de transcrições](https://github.com/Faysk/tda/wiki/Estatisticas-de-transcricoes)
 - [🧰 Recuperação e exclusão](https://github.com/Faysk/tda/wiki/Resultados-locais-e-exclusao)
 
 ### 🔐 Dados e privacidade

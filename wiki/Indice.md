@@ -12,6 +12,7 @@ Escolha uma tarefa ou explore os assuntos abaixo. Este índice contém **somente
 - [Links e identidade das campanhas](https://github.com/Faysk/tda/wiki/Rotas-e-campanhas)
 - [Personagens, NPCs e entidades](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
 - [Como explorar Ecos da Jornada](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer)
+- [Quests, músicas, mapas e busca ainda em evolução](https://github.com/Faysk/tda/wiki/Recursos-narrativos-em-evolucao)
 - [Histórias, diários e Lembra](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
 - [Lore: publicação, listagem, vínculo e indexação](https://github.com/Faysk/tda/wiki/Publicar-uma-Lore)
 - [Como salvar e encontrar referências visuais](https://github.com/Faysk/tda/wiki/Usar-o-Lembra)
@@ -23,6 +24,7 @@ Escolha uma tarefa ou explore os assuntos abaixo. Este índice contém **somente
 - [Companion Windows, Qwen e Whisper](https://github.com/Faysk/tda/wiki/Companion-e-IA)
 - [Sessões com múltiplas gravações](https://github.com/Faysk/tda/wiki/Multiplas-gravacoes)
 - [Qualidade ASR, WER/CER e benchmark](https://github.com/Faysk/tda/wiki/Qualidade-ASR)
+- [Entender as estatísticas privadas de transcrições](https://github.com/Faysk/tda/wiki/Estatisticas-de-transcricoes)
 - [Resultados, recuperação e exclusão local](https://github.com/Faysk/tda/wiki/Resultados-locais-e-exclusao)
 
 ## 🔐 Dados e segurança
