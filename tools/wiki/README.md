@@ -95,3 +95,9 @@ O preflight **não escreve nenhum ficheiro**. Verifica integridade e allowlist d
 ### Inspeção remota independente (somente leitura)
 
 O job `validate` em PR também tenta obter `WIKI_REMOTE_HEAD` com `git ls-remote` anônimo, sem credenciais, sobre `https://github.com/Faysk/tda.wiki.git`. Isso **não faz clone, não publica e não modifica a Wiki**. Um erro ou resultado vazio é relatado como `WIKI_REMOTE_NOT_READABLE_OR_NOT_INITIALIZED` ou `WIKI_REMOTE_NO_ADVERTISED_HEAD`, **não como prova de que a Wiki esteja vazia**. Esse passo não bloqueia a CI: a confirmação decisiva de permissões, histórico e SHA remoto pertence ao preflight e ao mantenedor no lançamento controlado.
+
+## Ensaio local de publicação e rollback Git (sem GitHub remoto)
+
+`tools/wiki/publication-flow.test.mjs` inicializa um repositório Git bare **sintético** no diretório temporário. Três testes verificam: (1) pacote preparado, commit e push normal com readback por novo clone e preservação de conteúdo unmanaged; (2) push comum recusado quando outro editor fez commit sobre base antiga; e (3) `git revert` do commit sintético com push não-forçado e readback do estado anterior.
+
+**Esse ensaio não publica nenhuma página real**, não demonstra permissões do repo Wiki GitHub e não valida sidebar/Mermaid na UI. Ajuda a verificar regras de recuperação por histórico preservado, não a afirmar #1761 concluída.
