@@ -81,7 +81,7 @@ jobs:
           echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "release=prod-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
 

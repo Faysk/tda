@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Classify changed files
@@ -69,7 +69,7 @@ jobs:
           echo "$SHA256  actionlint.tar.gz" | sha256sum --check --strict
           tar -xzf actionlint.tar.gz actionlint
           ./actionlint -color -shellcheck= -pyflakes=
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Validate change and Production release classifiers
@@ -111,7 +111,7 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -146,7 +146,7 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -199,7 +199,7 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -211,7 +211,7 @@ jobs:
         run: pnpm exec playwright test --config playwright.statistics.config.ts
       - name: Upload sanitized statistics visual receipts
         if: ${{ success() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: statistics-receipts-${{ github.run_id }}-${{ github.run_attempt }}
           path: test-results/**/statistics-*.png
@@ -219,7 +219,7 @@ jobs:
           retention-days: 30
       - name: Upload sanitized statistics failure artifacts
         if: ${{ failure() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: statistics-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -250,7 +250,7 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -262,7 +262,7 @@ jobs:
         run: pnpm exec playwright test --config playwright.permissions.config.ts
       - name: Upload sanitized permissions visual receipts
         if: ${{ success() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: permissions-receipts-${{ github.run_id }}-${{ github.run_attempt }}
           path: test-results/**/permissions-*.png
@@ -270,7 +270,7 @@ jobs:
           retention-days: 30
       - name: Upload sanitized permissions failure artifacts
         if: ${{ failure() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: permissions-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -301,7 +301,7 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -375,7 +375,7 @@ jobs:
           --project=desktop-1080p
       - name: Upload sanitized navigation visual receipts
         if: ${{ success() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: navigation-receipts-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -405,7 +405,7 @@ jobs:
           retention-days: 30
       - name: Upload sanitized navigation failure artifacts
         if: ${{ failure() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: navigation-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -436,7 +436,7 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -455,7 +455,7 @@ jobs:
           --project=mobile
       - name: Upload sanitized Lembra visual receipts
         if: ${{ success() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lembra-receipts-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: test-results/**/lembra-filter-*.png
@@ -463,7 +463,7 @@ jobs:
           retention-days: 30
       - name: Upload sanitized Lembra failure artifacts
         if: ${{ failure() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lembra-e2e-${{ github.run_id }}
           path: |
@@ -493,11 +493,11 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.1.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: '0.12.17'
       - run: corepack enable
@@ -511,7 +511,7 @@ jobs:
         run: pnpm test:processing:ux
       - name: Upload Live Log visual receipts
         if: ${{ success() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: processing-live-log-receipts-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -531,7 +531,7 @@ jobs:
           TDA_COMPANION_PACKAGE: ${{ github.workspace }}/local-companion
       - name: Upload sanitized Processing failure artifacts
         if: ${{ failure() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: processing-e2e-${{ github.run_id }}
           path: |
@@ -562,11 +562,11 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.1.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: '0.12.18'
       - run: corepack enable
@@ -613,11 +613,11 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.1.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: '0.12.18'
       - run: corepack enable
@@ -665,11 +665,11 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.1.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: '0.12.18'
       - run: corepack enable
@@ -699,7 +699,7 @@ jobs:
         run: node tools/ci/check-session-workflow-gate.mjs
       - name: Upload sanitized workflow failure artifacts
         if: ${{ failure() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: session-workflow-gate-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -730,7 +730,7 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -745,7 +745,7 @@ jobs:
         run: pnpm exec playwright test --config playwright.session-editorial.config.ts
       - name: Upload sanitized editorial layout receipts
         if: ${{ success() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: session-editorial-layout-receipts-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -764,7 +764,7 @@ jobs:
           python tools/session-publication-db.py
       - name: Upload sanitized editorial failure artifacts
         if: ${{ failure() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: session-editorial-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -795,7 +795,7 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -810,7 +810,7 @@ jobs:
         run: pnpm exec playwright test --config playwright.transcript-edit.config.ts
       - name: Upload issue 1354 synthetic visual receipts
         if: ${{ success() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: issue-1354-transcript-fixture-receipts-${{ github.run_id }}-${{ github.run_attempt }}
           path: test-results/**/issue-1354-*.png
@@ -818,7 +818,7 @@ jobs:
           retention-days: 30
       - name: Upload sanitized transcript edit failure artifacts
         if: ${{ failure() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: transcript-edit-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -847,7 +847,7 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
