@@ -126,7 +126,7 @@ Registre source SHA, Wiki commit SHA, lista de páginas revisadas, operador, dat
 
 ## 6. Verificação no GitHub Wiki real
 
-Abra Home, sidebar, footer, índice, três tutoriais principais e duas fontes técnicas na aba Wiki. Confira links, imagem de marca, 30 diagramas Mermaid, legibilidade mobile/desktop, tema claro/escuro e teclado. Faça as tarefas por persona em tools/wiki/REVIEW_CHECKLIST.md. Não declare 100% de cobertura apenas porque existem 35 páginas.
+Abra Home, sidebar, footer, índice, três tutoriais principais e duas fontes técnicas na aba Wiki. Confira links, imagem de marca e **todos os diagramas Mermaid apurados no `WIKI_SOURCE_OK` do SHA publicado**, além de legibilidade mobile/desktop, tema claro/escuro e teclado. Faça as tarefas por persona em tools/wiki/REVIEW_CHECKLIST.md. Não declare 100% de cobertura apenas porque a allowlist e os testes Markdown passaram: use o total de páginas do manifesto aprovado e os recibos de revisão.
 
 ### Comprovação por SHA e hashes, separada do navegador
 
