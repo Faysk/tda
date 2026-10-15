@@ -1,7 +1,7 @@
 {
   "schema": "tda_qwen_runtime_build_v1",
   "runtime_id": "qwen3-transformers",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "python": "3.12.14",
   "torch": {
     "version": "2.13.0",
@@ -14,7 +14,7 @@
     "huggingface-hub": "1.32.0",
     "safetensors": "0.8.0",
     "av": "19.0.1",
-    "numpy": "2.5.3",
+    "numpy": "2.5.4",
     "nvidia-ml-py": "13.615.71",
     "pyinstaller": "6.22.3"
   },

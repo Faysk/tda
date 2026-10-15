@@ -19,7 +19,7 @@ desktop = [
     "pillow==12.3.0",
 ]
 # ASR remains isolated from the HTTP Agent; engine runtimes are packaged separately.
-asr = ["faster-whisper==1.2.1", "ctranslate2==4.8.2"]
+asr = ["faster-whisper==1.2.1", "ctranslate2==4.8.3"]
 
 [project.scripts]
 tda-companion = "tda_companion.__main__:main"

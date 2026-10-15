@@ -8,13 +8,13 @@
 
 As linhas #1733 e #1736 foram reconciliadas preservando os contratos de Node, CodeQL Production/Main Preview e tracing de navegação. A correção test-only #1735 foi incorporada. Conflitos de ordenação foram resolvidos mantendo ambos os conjuntos de testes. Nenhum teste/gate foi removido.
 
-Validação: `pnpm check` e `pnpm build` passaram em Node 24.20.0/pnpm 12.3.4. Os 242 testes `tools/ci/*.test.mjs` passaram em WSL Linux/Node 24.20.0; no Windows os casos que criam symlinks recebem EPERM da máquina e não foram considerados verdes. Os dez testes de desktop/watchdog passaram em Windows/Python 3.12 com requirements-test.lock. O teste de fixture de atestação agora usa basename portátil; o CLI de readiness usa fileURLToPath. `.gitattributes` preserva LF nos contratos e scripts, sem mudar o conteúdo dos YAML.
+Validação: `pnpm check` e `pnpm build` passaram em Node 24.20.0/pnpm 12.3.4. Os 242 testes `tools/ci/*.test.mjs` passaram em WSL Linux/Node 24.20.0; no Windows os casos que criam symlinks recebem EPERM da máquina e não foram considerados verdes. Os dez testes de desktop/watchdog passaram em Windows/Python 3.12 com requirements-test.lock. A suíte completa com FastAPI 0.143.1 resolveu e passou 1433 testes, com 17 skips previstos, em Windows/Python 3.12.13. Os 36 testes afetados de RC/compatibilidade/release passaram após os novos pins ASR. O teste de fixture de atestação agora usa basename portátil; o CLI de readiness usa fileURLToPath. `.gitattributes` preserva LF nos contratos e scripts, sem mudar o conteúdo dos YAML.
 
 CI remoto do novo SHA, revisão independente, controles administrativos e aceites físicos continuam pendentes. Os dois casos históricos de navegação (Back/Forward e screenshot de contraste) passaram 15 repetições cada: 30/30 em Chromium desktop-1080p, com trace retido somente em falha. Reprodução local verde não estabelece causa raiz de intermitência em Linux CI.
 
 ## Freshness consultada em 15/10/2026
 
-A auditoria PyPI/Hugging Face apontou FastAPI 0.143.1, CTranslate2 4.8.3 e Qwen NumPy 2.5.4. FastAPI e requirements-test.lock foram reconciliados para 0.143.1, com instalação uv constraints bem-sucedida. CTranslate2/NumPy permanecem bloqueios reais de freshness e precisam de candidato ASR, resolução Windows/Linux, packaging e aceite físico exato; não receberam exceções inventadas. Exceções já existentes de Torch, Transformers, PyAV, uv e Python foram preservadas. Os alertas Dependabot retornaram 403 com mensagem de recurso desabilitado; não há prova de ausência de CVEs. Code scanning retornou zero alertas abertos visíveis pela conexão, sem estender esse resultado a outras fontes.
+A auditoria PyPI/Hugging Face apontou FastAPI 0.143.1, CTranslate2 4.8.3 e Qwen NumPy 2.5.4. FastAPI e requirements-test.lock foram reconciliados para 0.143.1, com instalação uv constraints bem-sucedida. Os patches CTranslate2 4.8.3 e NumPy 2.5.4 agora estão preparados nos candidatos novos Whisper 1.1.13 e Qwen 1.0.21; constantes de RC foram sincronizadas. A auditoria de freshness passou sem novas exceções. Os 36 testes de compatibilidade/RC/release passaram; ainda faltam resolução Linux, packaging isolado e aceite físico dos bytes exatos. Nenhum RC foi publicado ou declarado suportado. Exceções já existentes de Torch, Transformers, PyAV, uv e Python foram preservadas. Os alertas Dependabot retornaram 403 com mensagem de recurso desabilitado; não há prova de ausência de CVEs. Code scanning retornou zero alertas abertos visíveis pela conexão, sem estender esse resultado a outras fontes.
 
 ## Proteções remotas observadas por API autenticada
 
@@ -31,7 +31,7 @@ GET branch protection agora foi autorizado pelo gh local; a limitação 403 ante
 | Auto-merge | allow_auto_merge=false | automerge desabilitado |
 | Environments | preview/production sem protection_rules | sem required reviewers por Environment |
 
-Não alterar regras no escuro: endurecimento exige impacto, recuperação e decisão sobre revisor independente disponível. Não executar merge sintético falho contra main para testar. Essa evidência não encerra #1658.
+O owner confirmou nesta execução que mantém o repositório sozinho. Não exigir aprovação independente impossível; preservar publicação manual e checks, e preparar enforcement de CodeQL/freshness sem bypass. Endurecimento administrativo exige impacto e snapshot de recuperação antes de aplicar. Não executar merge sintético falho contra main para testar. Essa evidência não encerra #1658.
 
 ## Issues abertas: implementação e próximo aceite
 
@@ -41,7 +41,7 @@ Não alterar regras no escuro: endurecimento exige impacto, recuperação e deci
 | [#1652](https://github.com/Faysk/tda/issues/1652) | Lockkeeper e repair/check #1670 incorporados; FastAPI atualizado a 0.143.1 com lock coerente; falta CI final. |
 | [#1653](https://github.com/Faysk/tda/issues/1653) | Grupos npm #1671 incorporados e testes verdes; confirmar integração e novas propostas. |
 | [#1654](https://github.com/Faysk/tda/issues/1654) | Grupos Actions/CodeQL #1671 incorporados e testes verdes; confirmar integração e propostas atômicas. |
-| [#1655](https://github.com/Faysk/tda/issues/1655) | Política ASR mantém pins e aceites físicos; verificar freshness real sem atualizar modelo por conveniência. |
+| [#1655](https://github.com/Faysk/tda/issues/1655) | Patches ASR em candidatos versionados novos; freshness passou; gates de packaging/físico ainda pendentes. |
 | [#1656](https://github.com/Faysk/tda/issues/1656) | Gates reconciliados e testes negativos locais verdes; falta CI exato. |
 | [#1657](https://github.com/Faysk/tda/issues/1657) | Trust boundary e testes adversariais presentes; falta revisão independente. |
 | [#1658](https://github.com/Faysk/tda/issues/1658) | API acessível; gaps reais documentados acima; enforcement não corrigido. |
