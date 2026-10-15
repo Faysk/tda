@@ -39,6 +39,10 @@ function fixture(t) {
 }
 test("review packet includes every allowlisted page and exact-source links",t=>{
   const root=fixture(t);
+  // Navigation support pages may not carry an independent docs source.
+  const footer=path.join(root,"wiki/_Footer.md");
+  fs.writeFileSync(footer,fs.readFileSync(footer,"utf8")
+    .replace("https://github.com/Faysk/tda/blob/main/docs/source.md", "Support links"));
   const r=buildWikiReviewPacket(root,sha);
   assert.equal(r.pages,4);
   assert.equal(r.pending,4);
