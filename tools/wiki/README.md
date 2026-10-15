@@ -73,3 +73,21 @@ O job `validate` da CI agora executa um relatório **informativo e não bloquean
 Em PRs, a CI cria o pacote automaticamente como artefato **tda-wiki-review-<checkout-sha>**, retido por 14 dias, depois dos checks de código e Wiki. Esse pacote é para inspeção de conteúdo aprovado e eventual importação manual após conciliar a GitHub Wiki existente. Em PR, o checkout padrão da CI pode ser o **commit de merge de teste** (não o head isolado da PR); o receipt e o nome do artefato usam exatamente o SHA que foi de facto testado em `git rev-parse HEAD`. Para publicar após o merge, gerar um novo bundle a partir do commit de `main` efetivamente aprovado. Revalide um bundle baixado com `node tools/wiki/stage-wiki.mjs --verify /caminho/do/pacote`.
 
 O receipt de transporte **não** deve ser copiado para a raiz da Wiki Git; somente os arquivos `pages/*.md` pertencem à publicação. Registre separadamente a revisão humana, o commit real do Wiki Git, smoke de Home/sidebar/footer/Mermaid, e rollback.
+
+## Pré-validação read-only de publicação (Git Wiki separado)
+
+Após aprovar e integrar a documentação, gerar o bundle a partir do **commit canônico limpo de main**. Obter o estado da Wiki sem presumir que esteja vazia:
+
+```bash
+git clone https://github.com/Faysk/tda.wiki.git ../tda-wiki
+git -C ../tda-wiki fetch origin
+git -C ../tda-wiki rev-parse HEAD
+node tools/wiki/preflight-wiki.mjs \
+  --bundle-dir /CAMINHO/DO/BUNDLE \
+  --wiki-dir ../tda-wiki \
+  --expected-wiki-head <SHA_EXATO_DA_WIKI>
+```
+
+O preflight **não escreve nenhum ficheiro**. Verifica integridade e allowlist do pacote, igualdade byte-a-byte com a source checkout, source HEAD e worktree limpos, origin Git Wiki exato, HEAD aprovado da Wiki, branch com upstream origin correspondente, upstream local atualizado e ausência de drift em páginas já gerenciadas. Lista explicitamente páginas a criar/atualizar, páginas iguais e outras páginas preservadas. Sete testes sintéticos cobrem isso com repositórios Git locais; nenhum teste toca o remote real.
+
+**Limitação crítica:** comparar `HEAD` com `origin/<branch>` **não faz contato com o servidor**. Um fetch anterior pode ficar desatualizado depois do preflight. Repetir o fetch antes de preparar e executar **push não-forçado**, que rejeita remote avançado. Um recibo de preflight não prova autenticação, render GitHub, publicação, nem rollback. O primeiro bootstrap de Wiki sem commit segue sendo passo de mantenedor documentado na #1761.

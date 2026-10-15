@@ -38,7 +38,8 @@
     "wiki:sync:test": "node --test tools/wiki/sync-wiki.test.mjs",
     "wiki:coverage": "node tools/wiki/coverage.mjs",
     "wiki:impact": "node tools/wiki/impact.mjs --base origin/main",
-    "wiki:bundle": "node tools/wiki/stage-wiki.mjs"
+    "wiki:bundle": "node tools/wiki/stage-wiki.mjs",
+    "wiki:preflight": "node tools/wiki/preflight-wiki.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1151.0",
