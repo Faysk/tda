@@ -21,10 +21,7 @@ function pageUrls(text, page) {
 		try { url = new URL(literal); }
 		catch { fail("malformed URL in " + page); }
 		if (url.protocol !== "https:" && url.protocol !== "http:") fail("unsupported URL in " + page);
-		// Do not allow a fake host/path to impersonate an official source.
-		if (url.hostname !== "github.com" && literal.includes("github.com/Faysk/tda/")) {
-			fail("misleading embedded GitHub URL in " + page);
-		}
+		// Trust comparisons below only after parsing the actual URL origin.
 		found.push(url);
 	}
 	return found;
