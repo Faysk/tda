@@ -101,3 +101,9 @@ O job `validate` em PR também tenta obter `WIKI_REMOTE_HEAD` com `git ls-remote
 `tools/wiki/publication-flow.test.mjs` inicializa um repositório Git bare **sintético** no diretório temporário. Três testes verificam: (1) pacote preparado, commit e push normal com readback por novo clone e preservação de conteúdo unmanaged; (2) push comum recusado quando outro editor fez commit sobre base antiga; e (3) `git revert` do commit sintético com push não-forçado e readback do estado anterior.
 
 **Esse ensaio não publica nenhuma página real**, não demonstra permissões do repo Wiki GitHub e não valida sidebar/Mermaid na UI. Ajuda a verificar regras de recuperação por histórico preservado, não a afirmar #1761 concluída.
+
+## Matriz auditável de todas as fontes canônicas
+
+`node tools/wiki/coverage.mjs --matrix` lista cada Markdown realmente encontrado em `docs/`, a área, as páginas de Wiki que o referenciam e os valores **declarados** de Owner/Última revisão (ou `null`, jamais inferidos). Por segurança editorial, toda linha recebe `disposition: requires-owner-review`: **não há aprovação automática para espelhar conteúdo** por estar linkado. O relatório normal `pnpm wiki:coverage` continua fornecendo números/resumo por área. O comando não cria arquivos, não altera `docs/` e não publica na Wiki.
+
+A matriz é um **inventário de triagem**, não o cumprimento final de #1746: cada owner ainda precisa decidir se o assunto merece tutorial, link técnico sem cópia ou exclusão editorial, registrar a justificativa, e validar a natureza pública de qualquer material que vá para a Wiki.
