@@ -42,7 +42,12 @@ def test_native_watchdog_recovers_without_renderer_polling(tmp_path: Path):
     watchdog = DesktopAgentWatchdog(bridge, interval_seconds=0.01)  # type: ignore[arg-type]
     watchdog.start()
     try:
-        assert recovered.wait(1.0) is True
+        # Event-based recovery, not a 1s scheduler-speed benchmark. The watchdog
+        # clamps the requested 0.01s interval to 0.25s and writes a recovery log.
+        # Allow a bounded margin for busy Windows CI workers; still fail closed.
+        assert recovered.wait(5.0) is True, (
+            f"watchdog did not recover within 5s (ticks={bridge.calls})"
+        )
     finally:
         watchdog.stop()
 
