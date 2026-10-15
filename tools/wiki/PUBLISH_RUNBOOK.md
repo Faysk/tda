@@ -33,9 +33,12 @@ git pull --ff-only origin main
 git status --porcelain
 git rev-parse HEAD
 node tools/wiki/coverage.mjs
+node tools/wiki/editorial-gate.mjs --require-approved
 node tools/wiki/stage-wiki.mjs --out /CAMINHO_NOVO/tda-wiki-bundle
 node tools/wiki/stage-wiki.mjs --verify /CAMINHO_NOVO/tda-wiki-bundle
 ~~~
+
+**Se qualquer página ainda estiver pendente de revisão editorial, pare aqui:** a checagem estrita bloqueará a preparação final. Não marque `approved` sem revisão por uma pessoa e prova vinculada ao SHA-256 do conteúdo.
 
 O diretório do bundle deve ficar **fora dos dois checkouts** e ainda não existir. O bundle contém somente páginas aprovadas e receipt SHA-256. Não copie o receipt nem qualquer conteúdo privado para a Wiki.
 
