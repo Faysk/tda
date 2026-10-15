@@ -60,3 +60,29 @@ test("rejects a synthetic token leak", (t) => {
 	fs.appendFileSync(path.join(root, "wiki", "Home.md"), "\n\nghp_" + "abcdefghijklmnopqrstuvwxyz123456");
 	assert.throws(() => checkWiki(root), /credential signature/);
 });
+
+
+test("rejects direct HTML image bypassing approvedMedia", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.appendFileSync(path.join(root, "wiki", "Home.md"), "\n<img src='https://example.test/private.png'>");
+  assert.throws(() => checkWiki(root), /active HTML forbidden/);
+});
+
+test("rejects images without an explicitly approved URL", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.appendFileSync(path.join(root, "wiki", "Home.md"), "\n![Image](https://example.test/unknown.png)");
+  assert.throws(() => checkWiki(root), /image URL not allowlisted/);
+});
+
+test("approves exact images only when alt and manifest match", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const manifest = path.join(root, "tools", "wiki", "pages.json");
+  const data = JSON.parse(fs.readFileSync(manifest, "utf8"));
+  data.approvedMedia.push("https://example.test/approved.png");
+  fs.writeFileSync(manifest, JSON.stringify(data));
+  fs.appendFileSync(path.join(root, "wiki", "Home.md"), "\n![Approved illustration](https://example.test/approved.png)");
+  assert.equal(checkWiki(root).mediaApproved, 1);
+});

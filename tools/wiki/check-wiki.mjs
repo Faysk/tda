@@ -34,7 +34,7 @@ export function checkWiki(root = defaultRoot) {
 		if (!text.trim() || text.length < 70) fail("empty or short page: " + name);
 		const headings = [...text.matchAll(/^# (.+)$/gm)].length;
 		if (!name.startsWith("_") && headings !== 1) fail("exactly one H1 required in " + name);
-		if (/<\s*(script|iframe|object|style)\b/i.test(text)) fail("active HTML forbidden in " + name);
+		if (/<\s*(script|iframe|object|style|img|video|audio|embed)\b/i.test(text)) fail("active HTML forbidden in " + name);
 		if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|github_pat_[A-Za-z0-9_]{12,}|ghp_[A-Za-z0-9]{20,}/i.test(text)) {
 			fail("credential signature detected in " + name);
 		}
