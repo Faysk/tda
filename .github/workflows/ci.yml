@@ -177,6 +177,8 @@ jobs:
         run: python -m unittest discover -s tools/acceptance -p "test_*.py"
       - name: Typecheck, lint, unit and repository checks
         run: pnpm check
+      - name: Audit Wiki canonical source coverage
+        run: node tools/wiki/coverage.mjs
       - name: Report Wiki pages affected by canonical doc changes
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
