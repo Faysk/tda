@@ -19,7 +19,11 @@
     "Glossario",
     "Perguntas-frequentes",
     "Indice",
-    "Como-manter-a-Wiki"
+    "Como-manter-a-Wiki",
+    "Seguranca-e-permissoes",
+    "Banco-e-modelo-de-dados",
+    "Midia-e-assets",
+    "ADRs-e-decisoes"
   ],
   "approvedMedia": []
 }

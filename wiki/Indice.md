@@ -17,6 +17,13 @@ Use este índice quando não souber onde procurar. Ele cobre as páginas públic
 - [Processamento, revisão e publicação](https://github.com/Faysk/tda/wiki/Edit-e-revisao)
 - [Companion, Qwen e Whisper](https://github.com/Faysk/tda/wiki/Companion-e-IA)
 
+## 🔐 Acesso, dados e publicação
+
+- [🔐 Segurança e acesso](https://github.com/Faysk/tda/wiki/Seguranca-e-permissoes)
+- [🗄️ Banco e modelo de dados](https://github.com/Faysk/tda/wiki/Banco-e-modelo-de-dados)
+- [🖼️ Mídia e assets](https://github.com/Faysk/tda/wiki/Midia-e-assets)
+- [🧭 ADRs e decisões](https://github.com/Faysk/tda/wiki/ADRs-e-decisoes)
+
 ## 🛠️ Tecnologia e documentação
 
 - [Componentes e limites do sistema](https://github.com/Faysk/tda/wiki/Arquitetura)

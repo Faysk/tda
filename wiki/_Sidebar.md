@@ -13,8 +13,14 @@
 - [📝 Edit, revisão e publicação](https://github.com/Faysk/tda/wiki/Edit-e-revisao)
 - [🤖 Companion e ASR](https://github.com/Faysk/tda/wiki/Companion-e-IA)
 
+### 🔐 Acesso, dados e publicação
+- [🔐 Segurança e acesso](https://github.com/Faysk/tda/wiki/Seguranca-e-permissoes)
+- [🗄️ Banco e modelo de dados](https://github.com/Faysk/tda/wiki/Banco-e-modelo-de-dados)
+- [🖼️ Mídia e assets](https://github.com/Faysk/tda/wiki/Midia-e-assets)
+
 ### 🧱 Tecnologia
 - [🏗️ Arquitetura](https://github.com/Faysk/tda/wiki/Arquitetura)
+- [🧭 ADRs e decisões](https://github.com/Faysk/tda/wiki/ADRs-e-decisoes)
 - [💻 Desenvolvimento](https://github.com/Faysk/tda/wiki/Desenvolvimento)
 - [🔌 API e integrações](https://github.com/Faysk/tda/wiki/API-e-integracoes)
 - [🛡️ Operações e releases](https://github.com/Faysk/tda/wiki/Operacoes-e-releases)
