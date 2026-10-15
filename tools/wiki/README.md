@@ -55,3 +55,7 @@ Antes do uso real, validar origem do clone Git, branch da Wiki, situação sem m
 ## Relatório de cobertura por domínio
 
 `pnpm wiki:coverage` gera relatório read-only com a quantidade de documentos Markdown existentes em `docs/`, quantos têm ligação explícita nas páginas da Wiki, quais áreas estão sub-representadas e lacunas de `Owner`/`Última revisão`. O relatório não publica ficheiros nem afirma que um simples link corresponde a um tutorial completo. Cada revisão deve cruzar o resultado com `docs/documentation/catalog.md` e as fontes donas, sem inventar datas de revisão.
+
+## Alertas de impacto ao atualizar documentação canônica
+
+O comando `pnpm wiki:impact` compara os Markdown alterados entre `origin/main` e o HEAD local (é necessário ter o ref do Git atualizado) e lista quais páginas da Wiki apontam para essas fontes. Ele **não modifica a Wiki** e não afirma automaticamente desatualização: um dono deve julgar se houve alteração de contrato que exige reescrever o guia. Páginas sem referências também aparecem como lacuna potencial de cobertura. Em mudanças já integradas na main, forneça uma base mais antiga com `node tools/wiki/impact.mjs --base <sha-conhecido>`.
