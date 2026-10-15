@@ -48,7 +48,7 @@ export function checkWiki(root = defaultRoot) {
 		}
 		// Validate every tracked repository source link, not just docs/. This also
 		// catches broken README, CONTRIBUTING and toolchain references in guides.
-		for (const match of text.matchAll(/https:\\/\\/github\\.com\\/Faysk\\/tda\\/blob\\/main\\/([A-Za-z0-9_.\\/-]+)/g)) {
+		for (const match of text.matchAll(/https:\/\/github\.com\/Faysk\/tda\/blob\/main\/([A-Za-z0-9_.\/-]+)/g)) {
 			const relative = match[1];
 			const target = path.resolve(root, relative);
 			if (!target.startsWith(root + path.sep)) fail("source link escapes repository " + name + " -> " + relative);
