@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 
 // #1663 is an offline, deterministic triage summarizer.
 // It deliberately has no gh CLI, tokens, comments, HTTP calls or notification side effects.
-export const TRIAGE_POLICY_VERSION = "2026-10-13-triage-v1";
+export const TRIAGE_POLICY_VERSION = "2026-10-15-triage-v2";
 const allowedSeverities = new Set(["critical", "high", "medium", "low"]);
 
 function sha(value) { return typeof value === "string" && /^[0-9a-f]{40}$/.test(value); }
@@ -84,8 +84,8 @@ export function triageDependencyPr(input) {
   const advisoryId = typeof advisory?.id === "string" && /^[A-Za-z0-9-]{1,80}$/.test(advisory.id) ?
     advisory.id : "unknown-advisory";
   const failedJobs = input.ci?.head_sha === pr.head_sha && Array.isArray(input.ci.failed_jobs) ?
-    [...new Set(input.ci.failed_jobs.filter((n) => typeof n === "string" &&
-      /^[A-Za-z0-9_-]{1,100}$/.test(n)))].sort() : [];
+    [...new Set(input.ci.failed_jobs.filter((name) => typeof name === "string")
+      .map((name) => createHash("sha256").update(name).digest("hex")))].sort() : [];
   const seed = [
     TRIAGE_POLICY_VERSION, "Faysk/tda", number ?? "unknown", sha(pr.head_sha) ? pr.head_sha : "missing",
     verdict.classification, verdict.cause, advisory?.severity ?? "no-confirmed-advisory",

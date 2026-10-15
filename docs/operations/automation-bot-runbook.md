@@ -274,3 +274,15 @@ Contrato mínimo por mudança: PR + SHA, diff/manifest/lock, relatório de risco
 ### Operação individual e gates atuais — 15/10/2026
 
 O owner mantém o repositório sozinho: zero aprovações permanece deliberado, mas main agora exige branch atualizada e required-ci + ambas as linguagens CodeQL do app GitHub Actions. Os alertas Dependabot estão habilitados. Main Preview está em hold remoto até integrar sua configuração manual-only; jamais reabilitar o gatilho automático anterior. O [recibo](backlog-continuity-2026-10-15.md) contém origem, pós-validação, impacto e recuperação.
+
+### Digest de triagem — #1663
+
+`dependency-triage.yml` coleta somente metadados por GET e publica um GitHub Step Summary. Executa após CI de PR do próprio repositório, por dispatch ou às 08:00 Europe/Lisbon. O agendamento do GitHub é best effort; cron/timezone e as variáveis `TDA_TRIAGE_TIME_ZONE`/`TDA_TRIAGE_DIGEST_TIME` devem mudar juntos. Sem email, Slack, comentários, labels, checks próprios, merge ou publicação. O checkout é sempre da branch padrão, nunca do código recebido no PR.
+
+O token tem apenas leitura de contents/actions/pull-requests/security-events. Nenhum segredo adicional é necessário. Endpoints sem acesso, paginação incompleta e mudança de main/head durante a coleta produzem estado desconhecido; não são interpretados como aprovação. Alertas nativos pertencem ao grafo do repositório e não provam presença ou ausência de vulnerabilidade no head de um PR. A comparação estrita de pins TOML com o lock identifica divergências diretas, mas não certifica transitivas nem substitui instalação constrained, auditoria npm, CI ou CodeQL.
+
+O digest guarda números, SHAs, estados, nomes de pacotes, prioridades e fingerprints; não coleta títulos/corpos de PR, logs de jobs ou texto bruto de erros. Não cria artefatos adicionais: Summary/log seguem acesso e retenção do próprio GitHub Actions. Eventos sem sinal acionável ficam silenciosos. Testes locais usam API injetada e comprovam classificações negativas sem operações de escrita; executar manualmente em main para comprovar permissões e coleta hospedada após integração.
+
+O SLA continua **proposto, sem aprovação do owner**: triagem crítica no mesmo dia local e alta no próximo dia útil. Não é prazo de correção. Não declarar esse SLA vigente até resposta explícita. Security updates nativos foram habilitados e o read-back confirmou `enabled=true, paused=false`; `allow_auto_merge=false` permanece.
+
+Recuperação: desabilitar apenas Dependency Triage Digest ou reverter sua PR. Nenhum dado de produto ou configuração de release precisa de rollback.

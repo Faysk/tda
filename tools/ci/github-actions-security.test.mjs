@@ -12,6 +12,16 @@ const workflows = readdirSync(workflowRoot)
     text: readFileSync(join(workflowRoot, name), "utf8"),
   }));
 
+test("dependency triage executes default-branch code with read-only permissions", () => {
+  const text = readFileSync(join(workflowRoot, "dependency-triage.yml"), "utf8");
+  assert.match(text, /ref: \$\{\{ github\.event\.repository\.default_branch \}\}/);
+  assert.match(text, /persist-credentials: false/);
+  assert.match(text, /security-events: read/);
+  assert.doesNotMatch(text, /:\s*write\b|secrets\.|pull_request_target|repository_dispatch/);
+  assert.doesNotMatch(text, /ref:.*(?:head_sha|head_ref|pull_requests)/);
+  assert.match(text, /head_repository\.full_name == github\.repository/);
+});
+
 test("all remote GitHub Actions use immutable 40-character commit SHAs", () => {
   const violations = [];
   for (const workflow of workflows) {

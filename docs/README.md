@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: documentação/arquitetura
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-15
 > Fonte de verdade: `Faysk/tda@main` e documentos donos desta árvore
 
 > **Fonte de verdade do reboot.** Esta árvore documenta o produto, a arquitetura, o banco, a operação e as decisões vigentes do `Faysk/tda`.
@@ -10,6 +10,8 @@
 > `Faysk/dnd-scribe` é referência histórica. Nenhuma decisão, status ou arquitetura do legado passa a valer no TDA sem revalidação explícita e registro aqui.
 
 ## Como ler esta documentação
+
+Continuidade de 15/10: a consolidação [#1737](https://github.com/Faysk/tda/pull/1737) entrou em main (`75423cf7acc5`), com CI e CodeQL remotos aprovados. Isso não é publicação Web ou promoção Stable. O [recibo do backlog](operations/backlog-continuity-2026-10-15.md) e o [runbook dos bots](operations/automation-bot-runbook.md) distinguem integração, candidatos e aceites pendentes.
 
 A documentação é organizada em camadas para continuar navegável quando o projeto crescer:
 
