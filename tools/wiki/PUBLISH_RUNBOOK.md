@@ -113,6 +113,22 @@ Registre source SHA, Wiki commit SHA, lista de páginas revisadas, operador, dat
 
 Abra Home, sidebar, footer, índice, três tutoriais principais e duas fontes técnicas na aba Wiki. Confira links, imagem de marca, 30 diagramas Mermaid, legibilidade mobile/desktop, tema claro/escuro e teclado. Faça as tarefas por persona em tools/wiki/REVIEW_CHECKLIST.md. Não declare 100% de cobertura apenas porque existem 35 páginas.
 
+### Comprovação por SHA e hashes, separada do navegador
+
+Depois de confirmar o push, prefira fazer um **segundo clone** somente para readback, obter o SHA real do commit e verificar os bytes contra o mesmo checkout limpo de main usado na publicação:
+
+~~~bash
+git clone https://github.com/Faysk/tda.wiki.git ../tda-wiki-readback
+git -C ../tda-wiki-readback fetch origin
+git -C ../tda-wiki-readback rev-parse HEAD
+node tools/wiki/verify-wiki.mjs \
+  --wiki-dir ../tda-wiki-readback \
+  --source-sha SHA_EXATO_DA_MAIN \
+  --wiki-commit SHA_EXATO_DO_COMMIT_WIKI
+~~~
+
+Esse check falha se o commit ou o upstream local não correspondem, o receipt do sync diverge ou uma página da allowlist difere nos bytes. **Não substitui** o smoke visual do GitHub Wiki nem prova que o servidor publicou o renderer; registra separadamente resultado do navegador e do verificador Git.
+
 ## 7. Rollback reversível
 
 Se uma publicação aprovada precisar ser revertida, identifique o commit Wiki específico e examine mudanças posteriores. Num clone atualizado, sem conflito:

@@ -76,7 +76,7 @@ test("forged Wiki state SHA does not pass readback", (t) => {
 });
 test("remote tracking differing from readback HEAD is rejected", (t) => {
   const f = fixture(t);
-  git(f.wiki, "update-ref", "refs/remotes/origin/main", "a".repeat(40));
+  git(f.wiki, "update-ref", "refs/remotes/origin/main", git(f.wiki, "rev-parse", "HEAD^"));
   assert.throws(() => verifyWikiReadback(f.src, f.wiki, f.sourceSha, f.wikiCommit), /differs from fetched upstream/);
 });
 test("unapproved extra page in sync receipt does not pass", (t) => {
