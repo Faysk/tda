@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { checkWiki } from "./check-wiki.mjs";
+import { auditWikiEditorial } from "./editorial-gate.mjs";
 
 const rootDefault = path.resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const stateName = ".tda-wiki-sync-state.json";
@@ -233,7 +234,11 @@ function main() {
     }
     adoptions = readWikiAdoptionApprovals(file, apply ? expectedWikiHead : git(targetDir, "rev-parse", "HEAD"));
   }
-  if (apply) verifySourceRevision(rootDefault, shaIdx >= 0 ? argv[shaIdx + 1] : "");
+  if (apply) {
+    verifySourceRevision(rootDefault, shaIdx >= 0 ? argv[shaIdx + 1] : "");
+    // Fail closed at the documented publication entrypoint, not only in a runbook.
+    auditWikiEditorial(rootDefault, { requireApproved: true });
+  }
   const plan = apply
     ? applyWikiSync(rootDefault, targetDir, shaIdx >= 0 ? argv[shaIdx + 1] : "", { adoptions })
     : planWikiSync(rootDefault, targetDir, { adoptions });
