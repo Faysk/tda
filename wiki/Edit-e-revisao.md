@@ -59,3 +59,8 @@ Não execute comandos de reparo destrutivos sem seguir o runbook autorizado.
 - [ADR-0016](https://github.com/Faysk/tda/blob/main/docs/adr/0016-transcript-runs-review-publication.md)
 
 Continue: [Como funciona o Companion](https://github.com/Faysk/tda/wiki/Companion-e-IA) · [Glossário](https://github.com/Faysk/tda/wiki/Glossario)
+
+
+## Exemplo prático sem dados privados
+
+Veja [A Ponte Antiga — um percurso sintético da gravação à revisão](https://github.com/Faysk/tda/wiki/Da-gravacao-a-revisao) para acompanhar cada etapa e identificar os pontos de aprovação.

@@ -1,65 +1,64 @@
-# 🔎 Índice da Wiki
+# 🔎 Índice da documentação do TDA
 
-Use este índice quando não souber onde procurar. Ele cobre as páginas públicas curadas, não copia automaticamente toda documentação interna do projeto.
+Escolha uma tarefa ou explore os assuntos abaixo. Este índice contém **somente guias públicos aprovados**; a documentação técnica canônica permanece em [docs/](https://github.com/Faysk/tda/blob/main/docs/README.md).
 
-## 🎲 Conhecer e utilizar
+## 🧭 Começar e aprender a utilizar
 
-- [Visão geral do TDA](https://github.com/Faysk/tda/wiki/Home)
-- [Primeiros passos](https://github.com/Faysk/tda/wiki/Comece-aqui)
-- [Usando menus e páginas públicas](https://github.com/Faysk/tda/wiki/Usando-o-TDA)
-- [Campanhas, sessões e memórias](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes)
-- [World Explorer, NPCs e personagens](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
-- [Tutorial visual do World Explorer](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer)
-- [Histórias, diários e galeria](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
-- [Como guardar referências no Lembra](https://github.com/Faysk/tda/wiki/Usar-o-Lembra)
-- [Publicação e catálogo de lores](https://github.com/Faysk/tda/wiki/Publicar-uma-Lore)
-- [Panorama de funcionalidades e maturidade](https://github.com/Faysk/tda/wiki/Funcionalidades-e-estados)
-- [Perguntas frequentes](https://github.com/Faysk/tda/wiki/Perguntas-frequentes)
+[Início da Wiki](https://github.com/Faysk/tda/wiki/Home) · [Primeiros passos](https://github.com/Faysk/tda/wiki/Comece-aqui) · [Navegação para visitantes](https://github.com/Faysk/tda/wiki/Usando-o-TDA) · [Estado das funcionalidades](https://github.com/Faysk/tda/wiki/Funcionalidades-e-estados) · [Perguntas frequentes](https://github.com/Faysk/tda/wiki/Perguntas-frequentes)
 
-- [Rotas de campanha e links](https://github.com/Faysk/tda/wiki/Rotas-e-campanhas)
+## 🎲 Campanhas, mundo e histórias
 
-## 🤖 Edit e inteligência artificial
-- [🎙️ Múltiplas gravações](https://github.com/Faysk/tda/wiki/Multiplas-gravacoes)
-- [📊 Qualidade de ASR](https://github.com/Faysk/tda/wiki/Qualidade-ASR)
-- [🧰 Recuperação e exclusão](https://github.com/Faysk/tda/wiki/Resultados-locais-e-exclusao)
+- [Campanhas e sessões](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes)
+- [Links e identidade das campanhas](https://github.com/Faysk/tda/wiki/Rotas-e-campanhas)
+- [Personagens, NPCs e entidades](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
+- [Como explorar Ecos da Jornada](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer)
+- [Histórias, diários e Lembra](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
+- [Lore: publicação, listagem, vínculo e indexação](https://github.com/Faysk/tda/wiki/Publicar-uma-Lore)
+- [Como salvar e encontrar referências visuais](https://github.com/Faysk/tda/wiki/Usar-o-Lembra)
 
-- [Processamento, revisão e publicação](https://github.com/Faysk/tda/wiki/Edit-e-revisao)
-- [Companion, Qwen e Whisper](https://github.com/Faysk/tda/wiki/Companion-e-IA)
+## 🤖 Transcrições, Edit e processamento
 
-## 🔐 Acesso, dados e publicação
+- [Edit, revisão e publicação](https://github.com/Faysk/tda/wiki/Edit-e-revisao)
+- [Exemplo completo: gravação → revisão](https://github.com/Faysk/tda/wiki/Da-gravacao-a-revisao)
+- [Companion Windows, Qwen e Whisper](https://github.com/Faysk/tda/wiki/Companion-e-IA)
+- [Sessões com múltiplas gravações](https://github.com/Faysk/tda/wiki/Multiplas-gravacoes)
+- [Qualidade ASR, WER/CER e benchmark](https://github.com/Faysk/tda/wiki/Qualidade-ASR)
+- [Resultados, recuperação e exclusão local](https://github.com/Faysk/tda/wiki/Resultados-locais-e-exclusao)
 
-- [🔐 Segurança e acesso](https://github.com/Faysk/tda/wiki/Seguranca-e-permissoes)
-- [🗄️ Banco e modelo de dados](https://github.com/Faysk/tda/wiki/Banco-e-modelo-de-dados)
-- [🖼️ Mídia e assets](https://github.com/Faysk/tda/wiki/Midia-e-assets)
-- [🧭 ADRs e decisões](https://github.com/Faysk/tda/wiki/ADRs-e-decisoes)
+## 🔐 Dados e segurança
 
-## 🛠️ Tecnologia e documentação
+- [Autenticação, capabilities e audiência](https://github.com/Faysk/tda/wiki/Seguranca-e-permissoes)
+- [Banco PostgreSQL, modelo e migrations](https://github.com/Faysk/tda/wiki/Banco-e-modelo-de-dados)
+- [Mídia, R2, integridade e marca](https://github.com/Faysk/tda/wiki/Midia-e-assets)
 
-- [Componentes e limites do sistema](https://github.com/Faysk/tda/wiki/Arquitetura)
-- [Preparar ambiente e contribuir](https://github.com/Faysk/tda/wiki/Desenvolvimento)
-- [Endpoints e integrações](https://github.com/Faysk/tda/wiki/API-e-integracoes)
-- [Operações e estados de entrega](https://github.com/Faysk/tda/wiki/Operacoes-e-releases)
-- [Design System e marca](https://github.com/Faysk/tda/wiki/Design-System)
-- [Glossário das siglas e conceitos](https://github.com/Faysk/tda/wiki/Glossario)
-- [Como revisar e atualizar a Wiki](https://github.com/Faysk/tda/wiki/Como-manter-a-Wiki)
+## 🛠️ Engenharia e manutenção
 
-## 🔗 Fontes técnicas oficiais
+- [Arquitetura do TDA](https://github.com/Faysk/tda/wiki/Arquitetura)
+- [Decisões arquiteturais (ADRs)](https://github.com/Faysk/tda/wiki/ADRs-e-decisoes)
+- [Primeiro ambiente e contribuição](https://github.com/Faysk/tda/wiki/Desenvolvimento)
+- [API pública e integrações](https://github.com/Faysk/tda/wiki/API-e-integracoes)
+- [Entrega, release, rollback e recibos](https://github.com/Faysk/tda/wiki/Operacoes-e-releases)
+- [Identidade visual e Design System](https://github.com/Faysk/tda/wiki/Design-System)
+- [Como revisar e publicar atualizações da Wiki](https://github.com/Faysk/tda/wiki/Como-manter-a-Wiki)
 
-- [Índice canônico de docs/](https://github.com/Faysk/tda/blob/main/docs/README.md)
-- [Maturidade das funcionalidades](https://github.com/Faysk/tda/blob/main/docs/feature-catalog.md)
-- [Catálogo completo gerado](https://github.com/Faysk/tda/blob/main/docs/documentation/catalog.md)
-- [ADRs](https://github.com/Faysk/tda/blob/main/docs/adr/README.md)
-- [Issues](https://github.com/Faysk/tda/issues)
+## 🧯 Ajuda e referências
 
-## Encontre por tarefa
+- [Resolução de problemas por sintoma](https://github.com/Faysk/tda/wiki/Resolver-problemas)
+- [Glossário de conceitos e siglas](https://github.com/Faysk/tda/wiki/Glossario)
+- [Catálogo gerado de docs técnicos](https://github.com/Faysk/tda/blob/main/docs/documentation/catalog.md)
+- [Catálogo oficial de maturidade de features](https://github.com/Faysk/tda/blob/main/docs/feature-catalog.md)
+- [Índice canônico das ADRs](https://github.com/Faysk/tda/blob/main/docs/adr/README.md)
+
+## Encontre pela tarefa
 
 | Quero… | Página |
 | --- | --- |
-| Conhecer o projeto sem termos técnicos | [Comece aqui](https://github.com/Faysk/tda/wiki/Comece-aqui) |
-| Ler um resumo publicado | [Sessões](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes) |
-| Entender canon, relações e lore | [Mundo](https://github.com/Faysk/tda/wiki/Mundo-e-entidades) |
-| Corrigir transcrição | [Edit](https://github.com/Faysk/tda/wiki/Edit-e-revisao) |
-| Entender os motores locais | [Companion](https://github.com/Faysk/tda/wiki/Companion-e-IA) |
-| Fazer meu primeiro PR | [Dev](https://github.com/Faysk/tda/wiki/Desenvolvimento) |
-| Consultar API | [API](https://github.com/Faysk/tda/wiki/API-e-integracoes) |
-| Corrigir um guia | [Manutenção](https://github.com/Faysk/tda/wiki/Como-manter-a-Wiki) |
+| Entender o projeto sem conhecimentos técnicos | [Comece aqui](https://github.com/Faysk/tda/wiki/Comece-aqui) |
+| Ler uma memória de campanha | [Campanhas e sessões](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes) |
+| Explorar relações entre personagens | [World Explorer](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer) |
+| Guardar uma referência visual | [Lembra](https://github.com/Faysk/tda/wiki/Usar-o-Lembra) |
+| Entender todo o fluxo de uma gravação | [Gravação até revisão](https://github.com/Faysk/tda/wiki/Da-gravacao-a-revisao) |
+| Recuperar processamento local com falha | [Recuperação segura](https://github.com/Faysk/tda/wiki/Resultados-locais-e-exclusao) |
+| Fazer uma primeira PR | [Desenvolvimento](https://github.com/Faysk/tda/wiki/Desenvolvimento) |
+| Resolver um erro comum | [Por sintoma](https://github.com/Faysk/tda/wiki/Resolver-problemas) |
+| Entender uma sigla | [Glossário](https://github.com/Faysk/tda/wiki/Glossario) |

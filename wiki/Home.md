@@ -26,6 +26,8 @@ O TDA organiza memórias de campanhas de RPG: **campanhas, sessões, personagens
 
 Se você quer descobrir **o que já está disponível e o que ainda está planejado**, consulte [o panorama de funcionalidades e maturidade](https://github.com/Faysk/tda/wiki/Funcionalidades-e-estados).
 
+Para entender um exemplo completo, consulte [da gravação até a revisão](https://github.com/Faysk/tda/wiki/Da-gravacao-a-revisao). Se encontrar algum problema, use [a ajuda por sintomas](https://github.com/Faysk/tda/wiki/Resolver-problemas).
+
 ## Entenda o TDA em um desenho
 
 ~~~mermaid
