@@ -74,7 +74,8 @@ test("Node version pin files remain exactly synchronized", () => {
   assert.match(nodeVersion, /^\d+\.\d+\.\d+$/, "Node runtime must be exact");
   assert.equal(nvmVersion, nodeVersion,
     ".nvmrc and .node-version must not diverge between developer and CI runtimes");
-  assert.notEqual("24.21.0", nodeVersion, "synthetic different pin must be rejected");
+  assert.notEqual(nodeVersion.replace(/\d+$/, (n) => String(Number(n) + 1)), nvmVersion,
+    "synthetic patch-level drift must be detected without pinning a specific future version");
 });
 
 test("Vercel packaging excludes environment files and local build output", () => {
