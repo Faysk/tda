@@ -92,6 +92,10 @@ jobs:
           tools/ci/rc-provenance-policy.test.mjs
           tools/ci/bot-dependency-risk.test.mjs
           tools/ci/automation-trust-policy.test.mjs
+      - name: Validate Companion exact direct pins and synthetic lock repair
+        run: |
+          python3 tools/refresh-companion-test-lock.py --check
+          python3 tools/test-refresh-companion-test-lock.py
       - name: Validate direct Companion download verification
         run: python tools/ci/companion_download_verify_test.py
 
