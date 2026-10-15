@@ -1,0 +1,45 @@
+name: Dependency Triage Digest
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * *"
+      timezone: Europe/Lisbon
+
+# Default-branch code only; no comment/check write, dispatch or merge token.
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  security-events: read
+
+concurrency:
+  group: dependency-triage-${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || 'digest' }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.name == 'CI' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_repository.full_name == github.repository) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - name: Verify deterministic decisions and read-only collection
+        run: node --test tools/ci/dependency-triage.test.mjs
+      - name: Collect minimal GitHub metadata and render one summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TDA_TRIAGE_TIME_ZONE: Europe/Lisbon
+          TDA_TRIAGE_DIGEST_TIME: "08:00"
+        run: node tools/ci/dependency-triage-collector.mjs
