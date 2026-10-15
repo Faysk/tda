@@ -210,8 +210,9 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-20 |
-| [TDA — Frota de bots e automações (inventário + arquitetura-alvo)](../operations/automation-bot-fleet.md) | operations / governance / CI / Companion / release | inventário vigente; automações adicionais propostas | 2026-10-13 |
+| [TDA — Frota de bots e automações (inventário + arquitetura-alvo)](../operations/automation-bot-fleet.md) | operations / governance / CI / Companion / release | inventário vigente; automações adicionais propostas | 2026-10-15 |
 | [TDA — Runbook dos bots de manutenção e dependências](../operations/automation-bot-runbook.md) | operations / governance / CI | procedimentos observados e propostas futuras | 2026-10-13 |
+| [Auditoria de fronteiras GitHub Actions — 15/10/2026](../operations/automation-trust-audit-2026-10-15.md) | Não declarado | Não declarado | Não declarado |
 | [Continuidade do backlog — 15/10/2026](../operations/backlog-continuity-2026-10-15.md) | operations / governance / CI | candidato reconciliado; validação local, sem integração/publicação | Não declarado |
 | [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-10-01 |
 | [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-29 |
@@ -233,6 +234,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-29 |
 | [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-10-09 |
+| [Aceites físicos dos candidatos — 15/10/2026](../operations/runtime-acceptance-2026-10-15.md) | Companion/release. Source e signer: `75423cf7acc51704d79c3857ad60c155c305908c`. | Não declarado | Não declarado |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-22 |
 | [Transcript handoff — smoke editorial de Production](../operations/transcript-handoff-production-smoke.md) | transcripts / processing / operations | vigente | 2026-09-28 |
 | [World Entity Media — smoke editorial de Production](../operations/world-entity-media-production-smoke.md) | integrations/media + world | vigente | 2026-09-28 |
@@ -246,4 +248,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-160 páginas inventariadas, além deste catálogo gerado. 13 sem Owner e 24 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+162 páginas inventariadas, além deste catálogo gerado. 14 sem Owner e 26 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
