@@ -177,6 +177,56 @@ jobs:
         run: python -m unittest discover -s tools/acceptance -p "test_*.py"
       - name: Typecheck, lint, unit and repository checks
         run: pnpm check
+      - name: Report Wiki editorial review readiness
+        run: node tools/wiki/editorial-gate.mjs
+      - name: Audit Wiki canonical source coverage
+        run: node tools/wiki/coverage.mjs
+      - name: Report Wiki pages affected by canonical doc changes
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        env:
+          WIKI_BASE_REF: ${{ github.base_ref }}
+        run: node tools/wiki/impact.mjs --base "origin/${WIKI_BASE_REF}"
+      - name: Inspect Wiki remote HEAD (read-only, no credentials)
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE="https://github.com/Faysk/tda.wiki.git"
+          if RESULT="$(timeout 25 git ls-remote "$REMOTE" HEAD 2>/dev/null)"; then
+            if [[ -n "$RESULT" ]]; then
+              REMOTE_SHA="$(printf '%s\n' "$RESULT" | awk 'NR == 1 { print $1 }')"
+              printf 'WIKI_REMOTE_HEAD %s\n' "$REMOTE_SHA"
+            else
+              echo "WIKI_REMOTE_NO_ADVERTISED_HEAD"
+            fi
+          else
+            echo "WIKI_REMOTE_NOT_READABLE_OR_NOT_INITIALIZED"
+            exit 1
+          fi
+      - name: Stage approved Wiki bundle
+        if: ${{ github.event_name == 'pull_request' }}
+        run: node tools/wiki/stage-wiki.mjs --out "$RUNNER_TEMP/tda-wiki-bundle"
+      - name: Upload Wiki review bundle (no publication)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4.6.2
+        with:
+          name: tda-wiki-review-${{ github.sha }}
+          path: ${{ runner.temp }}/tda-wiki-bundle
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build Wiki editorial review packet
+        if: ${{ github.event_name == 'pull_request' }}
+        run: node tools/wiki/review-packet.mjs --out "$RUNNER_TEMP/tda-wiki-editorial-packet.md"
+      - name: Upload Wiki editorial review packet (no approval)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4.6.2
+        with:
+          name: tda-wiki-editorial-${{ github.sha }}
+          path: ${{ runner.temp }}/tda-wiki-editorial-packet.md
+          if-no-files-found: error
+          retention-days: 14
       - name: Build application
         run: pnpm build
 

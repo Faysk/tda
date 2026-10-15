@@ -1,0 +1,280 @@
+{
+  "schemaVersion": 1,
+  "repository": "Faysk/tda",
+  "description": "Editorial review inventory. Pending is not approval; approval requires a human reviewer, evidence and hash of the exact page bytes.",
+  "pages": {
+    "Home": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "_Sidebar": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "_Footer": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Comece-aqui": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Usando-o-TDA": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Campanhas-e-sessoes": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Mundo-e-entidades": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Lores-e-Lembra": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Edit-e-revisao": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Companion-e-IA": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Arquitetura": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Desenvolvimento": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "API-e-integracoes": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Operacoes-e-releases": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Design-System": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Glossario": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Perguntas-frequentes": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Indice": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Como-manter-a-Wiki": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Seguranca-e-permissoes": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Banco-e-modelo-de-dados": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Midia-e-assets": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "ADRs-e-decisoes": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Funcionalidades-e-estados": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Multiplas-gravacoes": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Qualidade-ASR": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Resultados-locais-e-exclusao": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Rotas-e-campanhas": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Explorar-o-World-Explorer": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Usar-o-Lembra": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Publicar-uma-Lore": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Da-gravacao-a-revisao": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Resolver-problemas": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Quem-pode-ver-o-que": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Como-o-TDA-e-publicado": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Recursos-narrativos-em-evolucao": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Estatisticas-de-transcricoes": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Perfis-de-personagens-e-NPCs": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    },
+    "Sessao-ao-vivo-e-Discord": {
+      "status": "pending",
+      "reviewer": null,
+      "reviewedAt": null,
+      "contentSha256": null,
+      "evidence": null
+    }
+  }
+}
