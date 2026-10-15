@@ -1,0 +1,25 @@
+{
+  "description": "Public page allowlist for the Faysk/tda native GitHub Wiki; new files require PR review.",
+  "pages": [
+    "Home",
+    "_Sidebar",
+    "_Footer",
+    "Comece-aqui",
+    "Usando-o-TDA",
+    "Campanhas-e-sessoes",
+    "Mundo-e-entidades",
+    "Lores-e-Lembra",
+    "Edit-e-revisao",
+    "Companion-e-IA",
+    "Arquitetura",
+    "Desenvolvimento",
+    "API-e-integracoes",
+    "Operacoes-e-releases",
+    "Design-System",
+    "Glossario",
+    "Perguntas-frequentes",
+    "Indice",
+    "Como-manter-a-Wiki"
+  ],
+  "approvedMedia": []
+}
