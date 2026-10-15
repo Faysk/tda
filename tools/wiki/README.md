@@ -65,3 +65,9 @@ O comando `pnpm wiki:impact` compara os Markdown alterados entre `origin/main` e
 ## Atualização contínua — integração com CI
 
 O job `validate` da CI agora executa um relatório **informativo e não bloqueante** em pull requests: para cada arquivo Markdown de `docs/` alterado, lista quais páginas em `wiki/` o referenciam. A execução usa `origin/<base>` obtido do GitHub e não faz alterações. Esse alerta ajuda os revisores a manterem a camada didática em sincronia, mas **não comprova** que uma página ficou desatualizada nem autoriza publicá-la automaticamente. A revisão de conteúdo continua manual e separada do fluxo de deploy.
+
+## Pacote de revisão por SHA
+
+`node tools/wiki/stage-wiki.mjs --out /caminho/novo/absoluto` produz **somente** os artigos públicos allowlisted em `pages/` e um `receipt.json` com o SHA exato do commit e hashes SHA-256 por arquivo. Falha se a fonte `wiki/` tiver alterações locais não commitadas, se a lista pública não passar no gate, ou se o destino já existir. O artefato final pode ser verificado por `verifyWikiBundle` antes de qualquer uso. **Não é publicação da Wiki**: não inclui push, token, alteração de banco ou deploy Web.
+
+Em PRs, a CI cria o pacote automaticamente como artefato **tda-wiki-review-<commit-sha>**, retido por 14 dias, depois dos checks de código e Wiki. Esse pacote é para inspeção de conteúdo aprovado e eventual importação manual após conciliar a GitHub Wiki existente. O receipt de transporte **não** deve ser copiado para a raiz da Wiki Git; somente os arquivos `pages/*.md` pertencem à publicação. Registre separadamente a revisão humana, o commit real do Wiki Git, smoke de Home/sidebar/footer/Mermaid, e rollback.
