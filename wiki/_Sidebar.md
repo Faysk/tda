@@ -2,6 +2,7 @@
 - [🏠 Início](https://github.com/Faysk/tda/wiki/Home)
 - [🧭 Comece aqui](https://github.com/Faysk/tda/wiki/Comece-aqui)
 - [🎲 Usando o TDA](https://github.com/Faysk/tda/wiki/Usando-o-TDA)
+- [🧩 Funcionalidades e estados](https://github.com/Faysk/tda/wiki/Funcionalidades-e-estados)
 - [❔ Perguntas frequentes](https://github.com/Faysk/tda/wiki/Perguntas-frequentes)
 
 ### 📜 Histórias e campanhas

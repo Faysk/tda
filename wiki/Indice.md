@@ -10,6 +10,7 @@ Use este índice quando não souber onde procurar. Ele cobre as páginas públic
 - [Campanhas, sessões e memórias](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes)
 - [World Explorer, NPCs e personagens](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
 - [Histórias, diários e galeria](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
+- [Panorama de funcionalidades e maturidade](https://github.com/Faysk/tda/wiki/Funcionalidades-e-estados)
 - [Perguntas frequentes](https://github.com/Faysk/tda/wiki/Perguntas-frequentes)
 
 ## 🤖 Edit e inteligência artificial
