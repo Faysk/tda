@@ -8,7 +8,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-30 |
+| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-10-15 |
 | [Arquitetura](../architecture.md) | arquitetura | vigente | 2026-09-30 |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
