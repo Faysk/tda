@@ -28,6 +28,7 @@ Escolha uma tarefa ou explore os assuntos abaixo. Este índice contém **somente
 ## 🔐 Dados e segurança
 
 - [Autenticação, capabilities e audiência](https://github.com/Faysk/tda/wiki/Seguranca-e-permissoes)
+- [Quem pode ver o quê: audiência e segredos narrativos](https://github.com/Faysk/tda/wiki/Quem-pode-ver-o-que)
 - [Banco PostgreSQL, modelo e migrations](https://github.com/Faysk/tda/wiki/Banco-e-modelo-de-dados)
 - [Mídia, R2, integridade e marca](https://github.com/Faysk/tda/wiki/Midia-e-assets)
 
@@ -38,6 +39,7 @@ Escolha uma tarefa ou explore os assuntos abaixo. Este índice contém **somente
 - [Primeiro ambiente e contribuição](https://github.com/Faysk/tda/wiki/Desenvolvimento)
 - [API pública e integrações](https://github.com/Faysk/tda/wiki/API-e-integracoes)
 - [Entrega, release, rollback e recibos](https://github.com/Faysk/tda/wiki/Operacoes-e-releases)
+- [Como um PR chega à produção](https://github.com/Faysk/tda/wiki/Como-o-TDA-e-publicado)
 - [Identidade visual e Design System](https://github.com/Faysk/tda/wiki/Design-System)
 - [Como revisar e publicar atualizações da Wiki](https://github.com/Faysk/tda/wiki/Como-manter-a-Wiki)
 

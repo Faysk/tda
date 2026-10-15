@@ -24,6 +24,7 @@
 
 ### 🔐 Dados e privacidade
 - [🔐 Segurança e acesso](https://github.com/Faysk/tda/wiki/Seguranca-e-permissoes)
+- [👁️ Quem pode ver o quê?](https://github.com/Faysk/tda/wiki/Quem-pode-ver-o-que)
 - [🗄️ Banco e modelo de dados](https://github.com/Faysk/tda/wiki/Banco-e-modelo-de-dados)
 - [🖼️ Mídia e assets](https://github.com/Faysk/tda/wiki/Midia-e-assets)
 
@@ -33,6 +34,7 @@
 - [💻 Desenvolvimento](https://github.com/Faysk/tda/wiki/Desenvolvimento)
 - [🔌 API e integrações](https://github.com/Faysk/tda/wiki/API-e-integracoes)
 - [🛡️ Operações e releases](https://github.com/Faysk/tda/wiki/Operacoes-e-releases)
+- [🚀 Como o TDA é publicado](https://github.com/Faysk/tda/wiki/Como-o-TDA-e-publicado)
 - [🎨 Design System](https://github.com/Faysk/tda/wiki/Design-System)
 
 ### 📚 Referência e suporte

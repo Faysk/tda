@@ -44,6 +44,8 @@ flowchart LR
 
 O fluxo de **gravação e transcrição é opcional**. Uma gravação processada não vira conteúdo público automaticamente: há revisão, permissão e um ato explícito de publicação.
 
+Para compreender por que uma informação pode aparecer para um jogador e não para outro, leia [Quem pode ver o quê?](https://github.com/Faysk/tda/wiki/Quem-pode-ver-o-que). Para entender a diferença entre código e produção, veja [Como o TDA é publicado](https://github.com/Faysk/tda/wiki/Como-o-TDA-e-publicado).
+
 ## Entenda o que está disponível
 
 O TDA evolui continuamente. Uma documentação pode descrever algo **implementado, preparado ou planejado**. Além disso, uma alteração em código não significa que esteja publicada no site.
