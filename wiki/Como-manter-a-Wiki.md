@@ -25,6 +25,22 @@ Uma página importante deve conter: **o que é → para quem → como usar → r
 
 Além disso, **validado**, **integrado à main** e **publicado/aplicado** não são sinônimos.
 
+## Registar revisão humana sem inventar aprovações
+
+Há um registro versionado em [editorial-reviews.json](https://github.com/Faysk/tda/blob/main/tools/wiki/editorial-reviews.json). Enquanto a página tiver `status: pending`, **ela não recebeu aprovação editorial registrada**. Isso não impede escrever, melhorar ou testar o artigo, mas bloqueia o comando de preparação para a publicação definitiva.
+
+Uma pessoa que realmente revisou o texto pode:
+
+1. Conferir a página e as fontes técnicas atuais: descrição, contratos vigentes, maturidade, permissões, exemplos e se não há dados privados.
+2. Registrar numa issue ou comentário da PR **o que leu e o que validou**, com a página exata; uma simples reação não comprova a revisão.
+3. Calcular o SHA-256 do arquivo Markdown exato e ajustar somente sua entrada no registro, indicando `status: approved`, seu nome de usuário no GitHub, a data de revisão, o hash e a URL de evidência.
+4. Executar `pnpm wiki:editorial` e `pnpm wiki:test`. O teste rejeita uma suposta aprovação cujo arquivo mudou depois.
+5. Se editar novamente um artigo aprovado, marque-o como `pending` até nova revisão ou atualize a aprovação **somente após a pessoa rever o novo conteúdo**.
+
+No Git Bash/Linux, use `sha256sum wiki/NOME-DA-PAGINA.md`. No PowerShell, use `(Get-FileHash wiki/NOME-DA-PAGINA.md -Algorithm SHA256).Hash.ToLowerInvariant()`. Não assine uma aprovação por outra pessoa ou copie uma data sem confirmação.
+
+**Atenção:** o registro identifica evidência informada, mas um script não autentica a identidade do revisor. A publicação real requer também `node tools/wiki/editorial-gate.mjs --require-approved`, a reconciliação do Git Wiki e o teste visual posterior de navegação, Mermaid, imagens e acessibilidade.
+
 ## Checklist de revisão
 
 - [ ] Página atende a uma necessidade real de leitura.
