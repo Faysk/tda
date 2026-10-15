@@ -214,7 +214,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [TDA — Runbook dos bots de manutenção e dependências](../operations/automation-bot-runbook.md) | operations / governance / CI | procedimentos observados e propostas futuras | 2026-10-13 |
 | [Auditoria de fronteiras GitHub Actions — 15/10/2026](../operations/automation-trust-audit-2026-10-15.md) | Não declarado | Não declarado | Não declarado |
 | [Continuidade do backlog — 15/10/2026](../operations/backlog-continuity-2026-10-15.md) | operations / governance / CI | candidato reconciliado; validação local, sem integração/publicação | Não declarado |
-| [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-10-01 |
+| [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-10-15 |
 | [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-29 |
 | [CI/CD — baseline da simplificação](../operations/cicd-simplification-baseline.md) | operations / architecture | auditoria | 2026-09-14 |
 | [CI/CD — plano de simplificação](../operations/cicd-simplification-plan.md) | operations / architecture | histórico — migração concluída em 2026-09-14 | 2026-09-14 |

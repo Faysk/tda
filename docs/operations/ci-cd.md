@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release / dados
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-15
 > Fonte de verdade: workflows versionados + ADR-0015 + ADR-0018
 
 ## Objetivo
@@ -20,9 +20,17 @@ Princípios:
 - Production é staged antes de receber tráfego;
 - rollback é mecanismo normal de recuperação.
 
-## Política de publicação deliberada — candidata 15/10/2026
+## Política de publicação deliberada — integrada 15/10/2026
 
-O [recibo de continuidade](backlog-continuity-2026-10-15.md) é a referência datada para os novos gates. Na candidata, Main Preview passa a aceitar somente workflow_dispatch com source_sha exato; CI e CodeQL push/main são provas obrigatórias concluídas, nunca gatilhos de deployment. O arquivo remoto está disabled_manually até a integração/revisão dessa configuração. Production permanece manual e exige os recibos CI/CodeQL mais recentes, a aprovação explícita e Preview verificado antes de configuração de produção. As descrições históricas de cadeia automática abaixo não autorizam reativação.
+O [recibo de continuidade](backlog-continuity-2026-10-15.md) é a referência datada para os novos gates. #1737 integrou Main Preview somente workflow_dispatch com source_sha exato; CI e CodeQL push/main são provas obrigatórias concluídas, nunca gatilhos de deployment. O arquivo foi reabilitado após integração/revisão (GET active), sem dispatch. Production permanece manual e exige os recibos CI/CodeQL mais recentes, a aprovação explícita e Preview verificado antes de configuração de produção. Preview automático de PR permanece disabled_manually. As descrições históricas de cadeia automática abaixo não autorizam reativação.
+
+## Toolchain congelada
+
+Node 24.20.0 mantém a exceção aprovada de hosting. pnpm 12.11.2 é a estável verificada em 15/10 no npm e na [release oficial de 09/10](https://github.com/pnpm/pnpm/releases/tag/v12.11.2). `packageManager`, os 21 passos explícitos de setup nos workflows e a seção packageManagerDependencies do lock devem coincidir. Um contrato local verifica essa paridade sem consultar rede. O upgrade do gerenciador não atualiza dependências do app: o segundo documento YAML do lock permanece idêntico. Repetir install --frozen-lockfile em Linux/Windows e manter os gates de domínio; não aceitar um install que regenere lock durante CI.
+
+Validação local: frozen install Windows, segunda geração do manager-lock sem diff, `pnpm check` e build passaram em Node 24.20.0/pnpm 12.11.2; 257 contratos de CI passaram em Linux/Node 24.20.0. A troca do gerenciador exigiu atualizar seu próprio primeiro documento do lock; a primeira tentativa frozen rejeitou corretamente o mismatch. Não se contornou esse gate nem se regenerou o lock dentro da CI.
+
+Rollback de toolchain: reverter a PR com manifest, manager-lock e todos os pins de workflow juntos; reinstalar pelo lock congelado. Não reverter só packageManager ou só CI. Essa troca não publica Web, executa migration ou altera canais Companion/Runtime.
 
 ## Fluxo
 

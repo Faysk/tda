@@ -89,6 +89,26 @@ test("Node version pin files remain exactly synchronized", () => {
     "synthetic patch-level drift must be detected without pinning a specific future version");
 });
 
+test("explicit pnpm workflow versions and manager lock follow packageManager", () => {
+  const manifest = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
+  const match = /^pnpm@(\d+\.\d+\.\d+)$/.exec(manifest.packageManager);
+  assert.ok(match, "packageManager must pin exact pnpm");
+  const expected = match[1];
+  for (const workflow of workflows) {
+    const setups = workflow.text.matchAll(/^\s*(?:-\s*)?uses:\s*pnpm\/action-setup@[^\n]*$/gm);
+    for (const setup of setups) {
+      const step = workflow.text.slice(setup.index + setup[0].length).split(/\n\s*- (?:name|uses|run):/, 1)[0];
+      const version = /^\s+version:\s*([^\s#]+)/m.exec(step)?.[1];
+      if (version) assert.equal(version, expected, `${workflow.name}: pnpm drift`);
+    }
+  }
+  const lock = readFileSync(join(process.cwd(), "pnpm-lock.yaml"), "utf8");
+  const manager = /packageManagerDependencies:\s+pnpm:\s+specifier: ([\d.]+)\s+version: ([\d.]+)/.exec(lock);
+  assert.ok(manager, "package-manager lock identity missing");
+  assert.equal(manager[1], expected);
+  assert.equal(manager[2], expected);
+});
+
 // CI consumes .node-version, developers often consume .nvmrc, and Vercel
 // project metadata sets a major Node version separately. Guard only checked-in
 // sources here; remote Vercel enforcement is not established by this test.
