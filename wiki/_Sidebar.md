@@ -7,9 +7,11 @@
 
 ### 📜 Campanhas e histórias
 - [📅 Campanhas e sessões](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes)
+- [🎲 Sessão ao vivo e Discord](https://github.com/Faysk/tda/wiki/Sessao-ao-vivo-e-Discord)
 - [🗺️ Campanhas e rotas](https://github.com/Faysk/tda/wiki/Rotas-e-campanhas)
 - [🌍 Mundo e entidades](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
 - [🧭 World Explorer passo a passo](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer)
+- [👥 Perfis de personagens e NPCs](https://github.com/Faysk/tda/wiki/Perfis-de-personagens-e-NPCs)
 - [🔭 Recursos narrativos em evolução](https://github.com/Faysk/tda/wiki/Recursos-narrativos-em-evolucao)
 - [🎨 Lores e Lembra](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
 - [📜 Entender publicação de lore](https://github.com/Faysk/tda/wiki/Publicar-uma-Lore)

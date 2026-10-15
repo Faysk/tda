@@ -54,3 +54,8 @@ Continue: [Lores, diários e referências](https://github.com/Faysk/tda/wiki/Lor
 ## Tutorial para explorar as relações
 
 Leia [Como explorar o World Explorer](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer) para aprender os controles, o papel da audiência e a diferença entre relações reais e demonstrações.
+
+
+## Mais sobre páginas de personagem
+
+O perfil de personagem é diferente do grafo: veja [o guia sobre perfis e NPCs](https://github.com/Faysk/tda/wiki/Perfis-de-personagens-e-NPCs), com fontes, visibilidade e campanha.

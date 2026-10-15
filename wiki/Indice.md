@@ -9,9 +9,11 @@ Escolha uma tarefa ou explore os assuntos abaixo. Este índice contém **guias p
 ## 🎲 Campanhas, mundo e histórias
 
 - [Campanhas e sessões](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes)
+- [O que está planejado para sessão ao vivo e Discord](https://github.com/Faysk/tda/wiki/Sessao-ao-vivo-e-Discord)
 - [Links e identidade das campanhas](https://github.com/Faysk/tda/wiki/Rotas-e-campanhas)
 - [Personagens, NPCs e entidades](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
 - [Como explorar Ecos da Jornada](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer)
+- [Como funcionam os perfis completos de personagens e NPCs](https://github.com/Faysk/tda/wiki/Perfis-de-personagens-e-NPCs)
 - [Quests, músicas, mapas e busca ainda em evolução](https://github.com/Faysk/tda/wiki/Recursos-narrativos-em-evolucao)
 - [Histórias, diários e Lembra](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
 - [Lore: publicação, listagem, vínculo e indexação](https://github.com/Faysk/tda/wiki/Publicar-uma-Lore)
