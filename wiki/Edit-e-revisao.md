@@ -64,3 +64,8 @@ Continue: [Como funciona o Companion](https://github.com/Faysk/tda/wiki/Companio
 ## Exemplo prático sem dados privados
 
 Veja [A Ponte Antiga — um percurso sintético da gravação à revisão](https://github.com/Faysk/tda/wiki/Da-gravacao-a-revisao) para acompanhar cada etapa e identificar os pontos de aprovação.
+
+
+## Estatísticas de sessões e transcrições
+
+A leitura privada de totais, duração, palavras e cobertura está explicada em [Estatísticas privadas de transcrições](https://github.com/Faysk/tda/wiki/Estatisticas-de-transcricoes). Ela exige autorização de campanha e não equivale à API pública de sessões.

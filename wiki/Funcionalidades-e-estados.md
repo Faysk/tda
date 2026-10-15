@@ -58,3 +58,8 @@ Este quadro é um resumo didático baseado no [catálogo canônico de features](
 Para verificar o estado mais recente, dê prioridade ao [índice técnico atual](https://github.com/Faysk/tda/blob/main/docs/README.md), às specs de cada área e aos receipts de entrega. Se houver aparente contradição entre um resumo e uma fonte mais recente, reporte em [#1745](https://github.com/Faysk/tda/issues/1745) para revisão.
 
 Continue: [Índice](https://github.com/Faysk/tda/wiki/Indice) · [Dúvidas comuns](https://github.com/Faysk/tda/wiki/Perguntas-frequentes) · [Glossário](https://github.com/Faysk/tda/wiki/Glossario).
+
+
+## Recursos em desenho e fundamentos
+
+Para entender por que quests, músicas, mapas, timelines e busca semântica ainda não devem ser apresentados como telas prontas, consulte [Recursos narrativos em evolução](https://github.com/Faysk/tda/wiki/Recursos-narrativos-em-evolucao).

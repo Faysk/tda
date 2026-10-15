@@ -1,6 +1,6 @@
 # 🔎 Índice da documentação do TDA
 
-Escolha uma tarefa ou explore os assuntos abaixo. Este índice contém **somente guias públicos aprovados**; a documentação técnica canônica permanece em [docs/](https://github.com/Faysk/tda/blob/main/docs/README.md).
+Escolha uma tarefa ou explore os assuntos abaixo. Este índice contém **guias públicos selecionados para revisão em PR**; a documentação técnica canônica permanece em [docs/](https://github.com/Faysk/tda/blob/main/docs/README.md).
 
 ## 🧭 Começar e aprender a utilizar
 
