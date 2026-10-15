@@ -44,7 +44,32 @@ function parseState(targetDir) {
   return state;
 }
 
-export function planWikiSync(sourceRoot, targetDir) {
+export function readWikiAdoptionApprovals(filePath, expectedWikiHead) {
+  if (!/^[a-f0-9]{40}$/.test(expectedWikiHead)) reject("expected Wiki SHA required for adoption");
+  if (!fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) {
+    reject("adoption receipt must be a regular JSON file");
+  }
+  let receipt;
+  try {
+    receipt = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    reject("invalid adoption JSON");
+  }
+  if (receipt.schemaVersion !== 1 || receipt.repository !== "Faysk/tda" ||
+      receipt.wikiHead !== expectedWikiHead || !receipt.pages ||
+      typeof receipt.pages !== "object" || Array.isArray(receipt.pages) ||
+      Object.keys(receipt.pages).length === 0) {
+    reject("adoption receipt missing or mismatched Wiki HEAD/pages");
+  }
+  for (const [name, hash] of Object.entries(receipt.pages)) {
+    if (!/^[A-Za-z0-9_-]+\.md$/.test(name) || !/^[a-f0-9]{64}$/.test(hash)) {
+      reject("invalid adoption page/hash: " + name);
+    }
+  }
+  return receipt.pages;
+}
+
+export function planWikiSync(sourceRoot, targetDir, { adoptions = {} } = {}) {
   checkWiki(sourceRoot);
   if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
     reject("target Wiki clone directory does not exist");
@@ -54,6 +79,12 @@ export function planWikiSync(sourceRoot, targetDir) {
   ));
   const state = parseState(targetDir);
   const allowed = new Set(manifest.pages.map((name) => name + ".md"));
+  if (!adoptions || typeof adoptions !== "object" || Array.isArray(adoptions)) {
+    reject("invalid adoption approvals");
+  }
+  for (const [name, hash] of Object.entries(adoptions)) {
+    if (!allowed.has(name) || !/^[a-f0-9]{64}$/.test(hash)) reject("unapproved adoption: " + name);
+  }
 
   // Deliberate removals need their own reviewed operation, not a blind mirror.
   for (const previous of Object.keys(state.pages)) {
@@ -72,16 +103,24 @@ export function planWikiSync(sourceRoot, targetDir) {
     const currentHash = current ? digest(current) : null;
     const managedHash = state.pages[name];
 
+    let adopted = false;
     if (managedHash) {
+      if (adoptions[name]) reject("adoption cannot override previously managed page: " + name);
       if (currentHash !== managedHash) {
         reject("Wiki page has manual drift or was removed; reconcile first: " + name);
       }
     } else if (current && currentHash !== wantedHash) {
-      reject("existing unmanaged Wiki page differs; refuse overwrite: " + name);
+      if (adoptions[name] !== currentHash) {
+        reject("existing unmanaged Wiki page differs; refuse overwrite: " + name);
+      }
+      adopted = true;
+    } else if (adoptions[name]) {
+      reject("unused adoption approval for page: " + name);
     }
     next.pages[name] = wantedHash;
     actions.push({
       page: name,
+      adopted,
       action: !current ? "create" : currentHash === wantedHash ? "unchanged" : "update",
     });
   }
@@ -92,9 +131,9 @@ export function planWikiSync(sourceRoot, targetDir) {
   return { actions, otherFiles, state: next };
 }
 
-export function applyWikiSync(sourceRoot, targetDir, sourceSha) {
+export function applyWikiSync(sourceRoot, targetDir, sourceSha, options = {}) {
   if (!/^[a-f0-9]{40}$/.test(sourceSha)) reject("exact 40-hex source SHA required for apply");
-  const plan = planWikiSync(sourceRoot, targetDir);
+  const plan = planWikiSync(sourceRoot, targetDir, options);
   // Compute the entire plan first, before touching files. Git commit/push are separate.
   for (const { page, action } of plan.actions) {
     if (action === "unchanged") continue;
@@ -157,14 +196,25 @@ function main() {
   }
   const targetDir = path.resolve(argv[idx + 1]);
   verifyClone(targetDir);
+  const adoptIdx = argv.indexOf("--adopt-file");
+  let adoptions = {};
+  if (adoptIdx >= 0) {
+    if (!argv[adoptIdx + 1]) reject("--adopt-file requires JSON path");
+    const file = path.resolve(argv[adoptIdx + 1]);
+    if (file.startsWith(rootDefault + path.sep) || file.startsWith(targetDir + path.sep)) {
+      reject("adoption receipt must stay outside source and Wiki checkouts");
+    }
+    adoptions = readWikiAdoptionApprovals(file, git(targetDir, "rev-parse", "HEAD"));
+  }
   const apply = argv.includes("--apply");
   if (apply) verifySourceRevision(rootDefault, shaIdx >= 0 ? argv[shaIdx + 1] : "");
   const plan = apply
-    ? applyWikiSync(rootDefault, targetDir, shaIdx >= 0 ? argv[shaIdx + 1] : "")
-    : planWikiSync(rootDefault, targetDir);
+    ? applyWikiSync(rootDefault, targetDir, shaIdx >= 0 ? argv[shaIdx + 1] : "", { adoptions })
+    : planWikiSync(rootDefault, targetDir, { adoptions });
   console.log("WIKI_SYNC_" + (apply ? "STAGED" : "DRY_RUN") + " " + JSON.stringify({
     create: plan.actions.filter((x) => x.action === "create").map((x) => x.page),
     update: plan.actions.filter((x) => x.action === "update").map((x) => x.page),
+    adopted: plan.actions.filter((x) => x.adopted).map((x) => x.page),
     unchanged: plan.actions.filter((x) => x.action === "unchanged").length,
     unmanagedPreserved: plan.otherFiles,
   }));

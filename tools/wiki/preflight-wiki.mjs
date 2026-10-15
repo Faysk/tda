@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { planWikiSync } from "./sync-wiki.mjs";
+import { planWikiSync, readWikiAdoptionApprovals } from "./sync-wiki.mjs";
 import { verifyWikiBundle } from "./stage-wiki.mjs";
 
 const sourceRoot = path.resolve(fileURLToPath(new URL("../../", import.meta.url)));
@@ -30,7 +30,7 @@ function cleanCheckout(cwd, description) {
   return git(cwd, "rev-parse", "HEAD");
 }
 
-export function planWikiPublication(root, bundleDir, wikiDir, expectedWikiHead) {
+export function planWikiPublication(root, bundleDir, wikiDir, expectedWikiHead, { adoptions = {} } = {}) {
   if (!/^[a-f0-9]{40}$/.test(expectedWikiHead)) refuse("expected Wiki HEAD must be a 40-character SHA");
   const bundle = verifyWikiBundle(bundleDir);
   const sourceSha = cleanCheckout(root, "source checkout");
@@ -57,7 +57,7 @@ export function planWikiPublication(root, bundleDir, wikiDir, expectedWikiHead) 
   const trackedHead = git(wikiDir, "rev-parse", "@{upstream}");
   if (trackedHead !== wikiSha) refuse("Wiki clone is not at its last fetched upstream SHA");
 
-  const plan = planWikiSync(root, wikiDir);
+  const plan = planWikiSync(root, wikiDir, { adoptions });
   return {
     sourceSha,
     wikiHead: wikiSha,
@@ -65,6 +65,7 @@ export function planWikiPublication(root, bundleDir, wikiDir, expectedWikiHead) 
     targetRemote: origin,
     create: plan.actions.filter((p) => p.action === "create").map((p) => p.page),
     update: plan.actions.filter((p) => p.action === "update").map((p) => p.page),
+    adopted: plan.actions.filter((p) => p.adopted).map((p) => p.page),
     unchanged: plan.actions.filter((p) => p.action === "unchanged").map((p) => p.page),
     unmanagedPreserved: plan.otherFiles,
     warning: "Read-only preflight. Fetch origin again before staging and use non-force push. Does not establish current remote HEAD or publication.",
@@ -78,8 +79,21 @@ function main() {
     if (index === -1 || !args[index + 1]) refuse("missing " + flag);
     return args[index + 1];
   };
+  const expectedWikiHead = get("--expected-wiki-head");
+  const adoptionIdx = args.indexOf("--adopt-file");
+  let adoptions = {};
+  if (adoptionIdx >= 0) {
+    if (!args[adoptionIdx + 1]) refuse("--adopt-file requires JSON path");
+    const file = path.resolve(args[adoptionIdx + 1]);
+    const wikiDir = path.resolve(get("--wiki-dir"));
+    if (file.startsWith(sourceRoot + path.sep) || file.startsWith(wikiDir + path.sep)) {
+      refuse("adoption receipt must remain outside Git checkouts");
+    }
+    adoptions = readWikiAdoptionApprovals(file, expectedWikiHead);
+  }
   const result = planWikiPublication(
-    sourceRoot, path.resolve(get("--bundle-dir")), path.resolve(get("--wiki-dir")), get("--expected-wiki-head"),
+    sourceRoot, path.resolve(get("--bundle-dir")), path.resolve(get("--wiki-dir")),
+    expectedWikiHead, { adoptions },
   );
   console.log("WIKI_PREFLIGHT_READ_ONLY " + JSON.stringify(result, null, 2));
 }

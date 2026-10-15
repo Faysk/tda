@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -100,4 +101,20 @@ test("stops when an existing unmanaged Wiki Home conflicts", (t) => {
   const newHead = commit(f.wiki);
   git(f.wiki, "update-ref", "refs/remotes/origin/master", newHead);
   assert.throws(() => planWikiPublication(f.source, f.bundle, f.wiki, newHead), /existing unmanaged Wiki page differs/);
+});
+
+
+test("preflight admits approved initial Home adoption only at exact Wiki HEAD", (t) => {
+  const f = fixture(t);
+  const existing = "# Existing Home\n\nReviewed manually before adoption.";
+  fs.writeFileSync(path.join(f.wiki, "Home.md"), existing);
+  const next = commit(f.wiki);
+  git(f.wiki, "update-ref", "refs/remotes/origin/master", next);
+  const hash = createHash("sha256").update(existing).digest("hex");
+  assert.throws(() => planWikiPublication(f.source, f.bundle, f.wiki, next),
+    /existing unmanaged Wiki page differs/);
+  const r = planWikiPublication(f.source, f.bundle, f.wiki, next,
+    { adoptions: { "Home.md": hash } });
+  assert.deepEqual(r.adopted, ["Home.md"]);
+  assert.match(fs.readFileSync(path.join(f.wiki, "Home.md"), "utf8"), /Existing Home/);
 });

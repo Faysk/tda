@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { planWikiSync, applyWikiSync } from "./sync-wiki.mjs";
+import { planWikiSync, applyWikiSync, readWikiAdoptionApprovals } from "./sync-wiki.mjs";
 
 const sha = "1".repeat(40);
 const sourceLink = "https://github.com/Faysk/tda/blob/main/docs/reference.md";
@@ -88,4 +89,50 @@ test("symlinks cannot replace managed Wiki files", (t) => {
   fs.writeFileSync(external, "Do not overwrite");
   fs.symlinkSync(external, path.join(remote, "Home.md"));
   assert.throws(() => planWikiSync(root, remote), /regular file/);
+});
+
+
+test("approved exact hash adopts one unmanaged Home and preserves other pages", (t) => {
+  const { root, remote } = setup(t);
+  const existing = "# Prior Home by a human\n\nReview this content before adopting it.";
+  fs.writeFileSync(path.join(remote, "Home.md"), existing);
+  const hash = createHash("sha256").update(existing).digest("hex");
+  const options = { adoptions: { "Home.md": hash } };
+  const plan = planWikiSync(root, remote, options);
+  assert.deepEqual(plan.actions.filter(x => x.adopted).map(x => x.page), ["Home.md"]);
+  assert.equal(fs.readFileSync(path.join(remote, "Home.md"), "utf8"), existing);
+  applyWikiSync(root, remote, sha, options);
+  assert.equal(fs.readFileSync(path.join(remote, "Home.md"), "utf8"),
+    fs.readFileSync(path.join(root, "wiki", "Home.md"), "utf8"));
+});
+
+test("stale approval or unknown page never grants overwrite", (t) => {
+  const { root, remote } = setup(t);
+  fs.writeFileSync(path.join(remote, "Home.md"), "# Old Home");
+  assert.throws(() => planWikiSync(root, remote,
+    { adoptions: { "Home.md": "0".repeat(64) } }), /refuse overwrite/);
+  assert.throws(() => planWikiSync(root, remote,
+    { adoptions: { "Other.md": "0".repeat(64) } }), /unapproved adoption/);
+});
+
+test("adoption never bypasses drift on an already managed page", (t) => {
+  const { root, remote } = setup(t);
+  applyWikiSync(root, remote, sha);
+  const edited = "# Manual edit after automated publication";
+  fs.writeFileSync(path.join(remote, "Home.md"), edited);
+  const hash = createHash("sha256").update(edited).digest("hex");
+  assert.throws(() => planWikiSync(root, remote,
+    { adoptions: { "Home.md": hash } }), /cannot override previously managed page/);
+});
+
+test("adoption receipt is bound to explicit Wiki HEAD and exact page hashes", (t) => {
+  const { root } = setup(t);
+  const f = path.join(root, "approval.json");
+  const head = "a".repeat(40);
+  fs.writeFileSync(f, JSON.stringify({
+    schemaVersion: 1, repository: "Faysk/tda", wikiHead: head,
+    pages: { "Home.md": "b".repeat(64) },
+  }));
+  assert.deepEqual(readWikiAdoptionApprovals(f, head), { "Home.md": "b".repeat(64) });
+  assert.throws(() => readWikiAdoptionApprovals(f, "c".repeat(40)), /mismatched Wiki HEAD/);
 });
