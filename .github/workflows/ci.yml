@@ -354,6 +354,7 @@ jobs:
           tests/campaign-management.spec.ts
           tests/account-campaign-context.spec.ts
           --project=desktop-1080p
+          --trace=retain-on-failure
       - name: Shared campaign picker browser contract
         run: >-
           pnpm exec playwright test
@@ -403,6 +404,7 @@ jobs:
           path: |
             test-results/**/test-failed-*.png
             test-results/**/error-context.md
+            test-results/**/trace.zip
           if-no-files-found: ignore
           retention-days: 7
 

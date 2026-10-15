@@ -162,6 +162,18 @@ test("pnpm workspace allowBuilds and npm registry configuration changes are high
   }
 });
 
+test("standalone Node pin edits demand human review with no package manifest drift", () => {
+  for (const path of [".node-version", ".nvmrc"]) {
+    const report = classifyDependencyDiff({ paths: [path] });
+    assert.equal(report.risk, "high");
+    assert.equal(report.recommendation, "human-review-required");
+    assert.ok(report.findings.some((f) =>
+      f.kind === "runtime-version-configuration" && f.name === path));
+    assert.match(renderRiskMarkdown(report), /Node runtime/);
+  }
+  assert.equal(classifyDependencyDiff({ paths: ["docs/node-version.md"] }).risk, "none");
+});
+
 test("Vercel deployment config and upload exclusion changes require human review", () => {
   for (const path of ["vercel.json", ".vercelignore"]) {
     const report = classifyDependencyDiff({ paths: [path] });

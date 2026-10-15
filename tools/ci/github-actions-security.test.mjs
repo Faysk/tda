@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { codeqlMainMatrixSucceeded, completeCodeqlJobsPage, findExactMainCodeqlReceipt, isExactMainCodeqlRun } from "./require-main-codeql.mjs";
 
 const workflowRoot = join(process.cwd(), ".github", "workflows");
 const workflows = readdirSync(workflowRoot)
@@ -76,6 +77,41 @@ test("Node version pin files remain exactly synchronized", () => {
     ".nvmrc and .node-version must not diverge between developer and CI runtimes");
   assert.notEqual(nodeVersion.replace(/\d+$/, (n) => String(Number(n) + 1)), nvmVersion,
     "synthetic patch-level drift must be detected without pinning a specific future version");
+});
+
+// CI consumes .node-version, developers often consume .nvmrc, and Vercel
+// project metadata sets a major Node version separately. Guard only checked-in
+// sources here; remote Vercel enforcement is not established by this test.
+function nodeRuntimePinViolations(nodeVersion, nvmrc, engine) {
+  const issues = [];
+  const left = String(nodeVersion).trim();
+  const right = String(nvmrc).trim();
+  if (!/^\d+\.\d+\.\d+$/.test(left))
+    issues.push(".node-version must be an exact semver");
+  if (!/^\d+\.\d+\.\d+$/.test(right))
+    issues.push(".nvmrc must be an exact semver");
+  if (left !== right)
+    issues.push("nvm and CI Node pins disagree");
+  const major = left.split(".")[0];
+  if (engine !== major + ".x")
+    issues.push("package.json engines.node must match pinned Node major");
+  return issues;
+}
+
+test("nvm and CI Node versions match the package engine major", () => {
+  const nodeVersion = readFileSync(join(process.cwd(), ".node-version"), "utf8");
+  const nvmrc = readFileSync(join(process.cwd(), ".nvmrc"), "utf8");
+  const manifest = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
+  assert.deepEqual(nodeRuntimePinViolations(nodeVersion, nvmrc, manifest.engines?.node), []);
+});
+
+test("runtime version pin drift and malformed pins fail the checked-in contract", () => {
+  for (const [nodeVersion, nvmrc, engine] of [
+    ["24.20.0", "24.21.0", "24.x"],
+    ["24.20.0", "24.20.0", "25.x"],
+    ["24", "24.20.0", "24.x"],
+    ["24.20.0", "lts/*", "24.x"],
+  ]) assert.notDeepEqual(nodeRuntimePinViolations(nodeVersion, nvmrc, engine), []);
 });
 
 test("Vercel packaging excludes environment files and local build output", () => {
@@ -163,11 +199,123 @@ test("deliberate Production release retains exact main provenance and staged pro
   assert.match(active, /--skip-domain/);
   assert.match(active, /vercel promote/);
 });
+test("Production requires an exact post-merge main push CodeQL run with both passing language jobs", () => {
+  const sha = "a".repeat(40);
+  const repository = "Faysk/tda";
+  const goodRun = {
+    id: 123456, name: "CodeQL", path: ".github/workflows/codeql.yml",
+    head_sha: sha, head_branch: "main",
+    head_repository: { full_name: repository },
+    event: "push", status: "completed", conclusion: "success",
+  };
+  const goodJobs = [
+    { name: "analyze (javascript-typescript)", status: "completed", conclusion: "success" },
+    { name: "analyze (python)", status: "completed", conclusion: "success" },
+  ];
+  assert.equal(isExactMainCodeqlRun(goodRun, sha, repository), true);
+  assert.equal(codeqlMainMatrixSucceeded(goodJobs), true);
+  assert.equal(findExactMainCodeqlReceipt([goodRun], { "123456": goodJobs }, sha, repository), goodRun);
+
+  for (const override of [
+    { head_sha: "b".repeat(40) },
+    { head_branch: "feature" },
+    { head_repository: { full_name: "attacker/repo" } },
+    { event: "pull_request" },
+    { event: "schedule" },
+    { path: ".github/workflows/ci.yml" },
+    { name: "Not CodeQL" },
+    { status: "in_progress" },
+    { conclusion: "failure" },
+    { conclusion: "skipped" },
+    { id: -1 },
+  ]) {
+    const bad = { ...goodRun, ...override };
+    assert.equal(isExactMainCodeqlRun(bad, sha, repository), false);
+    assert.equal(findExactMainCodeqlReceipt([bad], { "123456": goodJobs }, sha, repository), null);
+  }
+  assert.equal(isExactMainCodeqlRun(goodRun, "invalid", repository), false);
+});
+
+test("CodeQL language matrix cannot pass with missing, skipped or failed jobs", () => {
+  const js = { name: "analyze (javascript-typescript)", status: "completed", conclusion: "success" };
+  const py = { name: "analyze (python)", status: "completed", conclusion: "success" };
+  assert.equal(codeqlMainMatrixSucceeded([js, py]), true);
+  for (const jobs of [
+    [], [js], [py], [js, { ...py, conclusion: "failure" }],
+    [js, { ...py, conclusion: "skipped" }],
+    [js, { ...py, status: "queued" }],
+    [{ ...js, name: "analyze (go)" }, py],
+    [js, py, { ...py, conclusion: "failure" }],
+    [js, py, { ...py }],
+    [js, py, { name: "unexpected-extra", status: "completed", conclusion: "success" }],
+    [js, js], [py, py],
+    null, {},
+  ]) assert.equal(codeqlMainMatrixSucceeded(jobs), false);
+  assert.equal(codeqlMainMatrixSucceeded([py, js]), true, "matrix ordering is irrelevant");
+});
+
+test("CodeQL jobs API page must be complete, unambiguous, and exact before Production", () => {
+  const js = { name: "analyze (javascript-typescript)", status: "completed", conclusion: "success" };
+  const py = { name: "analyze (python)", status: "completed", conclusion: "success" };
+  assert.equal(completeCodeqlJobsPage({ total_count: 2, jobs: [js, py] }), true);
+  for (const page of [
+    null, {}, { jobs: [js, py] }, { total_count: 3, jobs: [js, py] },
+    { total_count: 2, jobs: [js] }, { total_count: "2", jobs: [js, py] },
+    { total_count: 2, jobs: [js, py, { ...py, conclusion: "failure" }] },
+    { total_count: 2, jobs: [js, { ...py, conclusion: "failure" }] },
+    { total_count: 2, jobs: [js, js] }, { total_count: 2, jobs: [js, null] },
+  ]) assert.equal(completeCodeqlJobsPage(page), false);
+});
+
+test("a newer incomplete or failed CodeQL run invalidates an older same-SHA green run", () => {
+  const sha = "a".repeat(40);
+  const repo = "Faysk/tda";
+  const older = {
+    id: 100, name: "CodeQL", path: ".github/workflows/codeql.yml",
+    head_sha: sha, head_branch: "main", head_repository: { full_name: repo },
+    event: "push", status: "completed", conclusion: "success",
+  };
+  const js = { name: "analyze (javascript-typescript)", status: "completed", conclusion: "success" };
+  const py = { name: "analyze (python)", status: "completed", conclusion: "success" };
+  const jobs = { "100": [js, py], "200": [js, py] };
+  const newer = { ...older, id: 200, status: "in_progress", conclusion: null };
+  assert.equal(findExactMainCodeqlReceipt([older, newer], jobs, sha, repo), null);
+  assert.equal(findExactMainCodeqlReceipt([newer, older], jobs, sha, repo), null);
+  assert.equal(findExactMainCodeqlReceipt([older, { ...newer, status: "completed",
+    conclusion: "failure" }], jobs, sha, repo), null);
+  assert.equal(findExactMainCodeqlReceipt([older, { ...newer, status: "completed",
+    conclusion: "success" }], { ...jobs, "200": [js] }, sha, repo), null);
+  assert.equal(findExactMainCodeqlReceipt([older, { ...newer, status: "completed",
+    conclusion: "success" }], jobs, sha, repo)?.id, 200);
+  assert.equal(findExactMainCodeqlReceipt([older, {
+    ...newer, event: "pull_request",
+  }], jobs, sha, repo)?.id, 100, "a PR run must not override a main push");
+});
+
+test("Production CodeQL fetch considers pending runs before evaluating latest receipt", () => {
+  const source = readFileSync(join(process.cwd(), "tools/ci/require-main-codeql.mjs"), "utf8");
+  assert.ok(source.includes("&event=push&per_page=100"));
+  assert.equal(source.includes("&event=push&status=completed"), false);
+  assert.ok(source.includes("latest run not successful"));
+  assert.match(source, /if \(!completeCodeqlJobsPage\(jobPayload\)\)/);
+});
+
+test("Production checks the exact-main CodeQL matrix before human confirmation or deployment", () => {
+  const prod = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
+  assert.match(prod, /node tools\/ci\/require-main-codeql\.mjs/);
+  assert.ok(prod.indexOf("Require exact main CodeQL Python and JS/TS evidence") >
+    prod.indexOf("Require successful CI for the exact main source"));
+  assert.ok(prod.indexOf("Require exact main CodeQL Python and JS/TS evidence") <
+    prod.indexOf("Require explicit human Production approval"));
+  assert.ok(prod.indexOf("Require exact main CodeQL Python and JS/TS evidence") <
+    prod.indexOf("Pull Production configuration"));
+});
+
 test("every main release candidate reaches Preview before an explicit Production approval", () => {
   const mainPreview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
   const production = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
   assert.match(mainPreview, /workflow_run:/);
-  assert.match(mainPreview, /workflows:\s*\[CI\]/);
+  assert.match(mainPreview, /workflows:\s*\[CI, CodeQL\]/);
   assert.match(mainPreview, /workflow_dispatch:/);
   assert.match(mainPreview, /head_branch == 'main'/);
   assert.match(mainPreview, /MAIN_PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED/);
@@ -197,6 +345,49 @@ test("every main release candidate reaches Preview before an explicit Production
     production.indexOf("Pull Production configuration"));
   assert.ok(production.indexOf("Reverify the approved Preview runtime before staging Production") <
     production.indexOf("Pull Production configuration"));
+});
+
+test("navigation regression failures upload a scoped synthetic Playwright trace", () => {
+  const ci = readFileSync(join(workflowRoot, "ci.yml"), "utf8");
+  const start = ci.indexOf("  navigation-e2e:\n");
+  const end = ci.indexOf("\n  lembra-e2e:\n", start);
+  assert.ok(start >= 0 && end > start, "navigation job boundary");
+  const nav = ci.slice(start, end);
+  const globalStep = nav.slice(nav.indexOf("      - name: Global navigation and shell contracts"),
+    nav.indexOf("      - name: Shared campaign picker browser contract"));
+  assert.ok(globalStep.includes("--trace=retain-on-failure"),
+    "trace must be scoped to synthetic global navigation failure");
+  const failedArtifact = nav.slice(nav.indexOf("      - name: Upload sanitized navigation failure artifacts"));
+  assert.ok(failedArtifact.includes("if: ${{ failure() }}"));
+  assert.ok(failedArtifact.includes("test-results/**/trace.zip"),
+    "upload must include the actual Playwright failure trace");
+  assert.equal(nav.includes("continue-on-error: true"), false);
+  const playwright = readFileSync(join(process.cwd(), "playwright.config.ts"), "utf8");
+  assert.ok(playwright.includes('TDA_E2E_FIXTURES: "true"'));
+  assert.ok(playwright.includes('TDA_READ_PUBLISHED_DATA: "false"'));
+});
+
+test("Main Preview requires latest same-SHA main CodeQL before Production-parity build", () => {
+  const preview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
+  assert.ok(preview.includes("workflows: [CI, CodeQL]"),
+    "the later of CI and CodeQL must be able to trigger reviewed Preview");
+  assert.ok(preview.includes("github.event.workflow_run.name == 'CI'"));
+  assert.ok(preview.includes("github.event.workflow_run.name == 'CodeQL'"));
+  assert.ok(preview.includes("github.event.workflow_run.event == 'push'"));
+  assert.ok(preview.includes("github.event.workflow_run.head_branch == 'main'"));
+  assert.ok(preview.includes("github.event.workflow_run.conclusion == 'success'"));
+  assert.ok(preview.includes("github.event.workflow_run.head_repository.full_name == github.repository"));
+  assert.ok(preview.includes("MAIN_PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED"));
+  assert.ok(preview.includes("Require exact-main CodeQL before Production-parity Preview"));
+  assert.ok(preview.includes("node tools/ci/require-main-codeql.mjs"));
+  assert.ok(preview.indexOf("Require exact-main CodeQL before Production-parity Preview") >
+    preview.indexOf("Verify exact checkout and configure project"));
+  assert.ok(preview.indexOf("Require exact-main CodeQL before Production-parity Preview") <
+    preview.indexOf("Pull the existing Production environment"));
+  assert.ok(preview.indexOf("Require exact-main CodeQL before Production-parity Preview") <
+    preview.indexOf("vercel build --prod"));
+  assert.ok(preview.indexOf("Require exact-main CodeQL before Production-parity Preview") <
+    preview.indexOf("vercel deploy --prebuilt --prod --skip-domain"));
 });
 
 test("Web-only releases are semantic, channel-isolated and published after deploy proof", () => {

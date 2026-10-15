@@ -120,6 +120,14 @@ jobs:
           console.log(`PRODUCTION_EXACT_MAIN_CI_OK ${process.env.SOURCE_SHA}`);
           NODE
 
+      - name: Require exact main CodeQL Python and JS/TS evidence
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          node tools/ci/require-main-codeql.mjs
+
       - name: Require explicit human Production approval
         shell: bash
         env:
