@@ -81,6 +81,12 @@ function git(root, ...args) {
 
 function main() {
   const args = process.argv.slice(2);
+  const verifyIndex = args.indexOf("--verify");
+  if (verifyIndex >= 0) {
+    if (!args[verifyIndex + 1]) fail("--verify requires a bundle directory");
+    console.log("WIKI_BUNDLE_VERIFIED " + JSON.stringify(verifyWikiBundle(path.resolve(args[verifyIndex + 1]))));
+    return;
+  }
   const i = args.indexOf("--out");
   if (i < 0 || !args[i + 1]) fail("usage: node tools/wiki/stage-wiki.mjs --out <new-absolute-path>");
   const out = path.resolve(args[i + 1]);
