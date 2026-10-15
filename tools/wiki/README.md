@@ -51,3 +51,7 @@ git -C ../tda-wiki diff
 **Não execute o comando acima se a Wiki não tiver sido inicializada ou a PR ainda não tiver sido aprovada.** O parâmetro `--apply` escreve somente no clone local autorizado. Um arquivo `.tda-wiki-sync-state.json` guarda checksums dos arquivos gerenciados e o SHA de origem; não há credenciais nesse arquivo. Revisão humana, commit, push e readback são passos separados.
 
 Antes do uso real, validar origem do clone Git, branch da Wiki, situação sem modificações locais, política de token e efeitos da presença do arquivo de estado no renderer do GitHub. `--apply` não resolve alterações concorrentes entre o preparo e o push; usar push não forçado e conferir commit remoto antes de promover. A versão posterior poderá ter workflow manual com permissão mínima, se aprovado.
+
+## Relatório de cobertura por domínio
+
+`pnpm wiki:coverage` gera relatório read-only com a quantidade de documentos Markdown existentes em `docs/`, quantos têm ligação explícita nas páginas da Wiki, quais áreas estão sub-representadas e lacunas de `Owner`/`Última revisão`. O relatório não publica ficheiros nem afirma que um simples link corresponde a um tutorial completo. Cada revisão deve cruzar o resultado com `docs/documentation/catalog.md` e as fontes donas, sem inventar datas de revisão.
