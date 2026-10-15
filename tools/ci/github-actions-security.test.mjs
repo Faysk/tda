@@ -68,6 +68,15 @@ function vercelIgnorePolicyViolations(source) {
   return violations;
 }
 
+test("Node version pin files remain exactly synchronized", () => {
+  const nodeVersion = readFileSync(join(process.cwd(), ".node-version"), "utf8").trim();
+  const nvmVersion = readFileSync(join(process.cwd(), ".nvmrc"), "utf8").trim();
+  assert.match(nodeVersion, /^\d+\.\d+\.\d+$/, "Node runtime must be exact");
+  assert.equal(nvmVersion, nodeVersion,
+    ".nvmrc and .node-version must not diverge between developer and CI runtimes");
+  assert.notEqual("24.21.0", nodeVersion, "synthetic different pin must be rejected");
+});
+
 test("Vercel packaging excludes environment files and local build output", () => {
   const source = readFileSync(join(process.cwd(), ".vercelignore"), "utf8");
   assert.deepEqual(vercelIgnorePolicyViolations(source), []);
