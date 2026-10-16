@@ -39,6 +39,10 @@ Foi aplicada uma exceção operacional explícita para esta primeira entrega à 
 
 Capturas e relatório detalhado de navegação foram preservados no pacote operacional local fora do Git. Nenhuma captura com chrome de conta, arquivo de trabalho, transcrição ou segredo foi commitada.
 
+### Correção visual da Home
+
+O smoke identificou que o renderer nativo exibia o SVG da marca em largura total, empurrando a apresentação para baixo. A PR documental de continuidade troca somente essa imagem inline por um link para **o mesmo objeto oficial**, preservando o arquivo no Media Storage. Os SHA acima identificam a primeira publicação; a republicação da Home corrigida tem seu próprio source SHA, commit Wiki e readback registrados na [issue de entrega #1761](https://github.com/Faysk/tda/issues/1761). Este recibo não mistura os bytes da primeira publicação com os da correção.
+
 ## Rollback verificado sem retirar a entrega pública
 
 Foi criado um clone local separado do Wiki e executado `git revert --no-edit 8ac0c7daa5099bf1b7da5b2febbd5ec131d3e01b`. A comparação da árvore resultante com `9cd4f21900c7dbb88f9b99f6b8912d9dc53bae2e` não apresentou diferenças. **O revert de ensaio não foi enviado**; o HEAD remoto permaneceu `8ac0c7daa5099bf1b7da5b2febbd5ec131d3e01b`.
