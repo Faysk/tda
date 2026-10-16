@@ -1,6 +1,6 @@
 # 🎲 TDA — Tem Dado Aqui
 
-![Símbolo oficial do TDA: dado de vinte faces com pato estilizado no centro](https://media.dnd.faysk.dev/brand/59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e/favicon.svg)
+[Ver símbolo oficial do TDA](https://media.dnd.faysk.dev/brand/59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e/favicon.svg)
 
 
 > **Wiki oficial de uso e compreensão do projeto.** Um guia para quem quer conhecer, utilizar, contribuir ou entender como o TDA funciona.

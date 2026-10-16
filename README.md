@@ -1,6 +1,7 @@
 # TDA — Tem Dado Aqui
 Base do reboot: uma aplicação para histórias, sessões e o futuro Edit integrado.
 
+- [Wiki do projeto — guias de uso](https://github.com/Faysk/tda/wiki)
 - [Documentação e roadmap](docs/README.md)
 - [Arquitetura](docs/architecture.md)
 - [Infraestrutura e estado](docs/infrastructure.md)

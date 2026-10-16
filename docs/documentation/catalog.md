@@ -238,6 +238,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Aceites físicos dos candidatos — 15/10/2026](../operations/runtime-acceptance-2026-10-15.md) | Companion/release. Source e signer: `75423cf7acc51704d79c3857ad60c155c305908c`. | Não declarado | Não declarado |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-22 |
 | [Transcript handoff — smoke editorial de Production](../operations/transcript-handoff-production-smoke.md) | transcripts / processing / operations | vigente | 2026-09-28 |
+| [Primeira publicação da GitHub Wiki — 2026-10-16](../operations/wiki-publication-2026-10-16.md) | documentação / operations | publicado | 2026-10-16 |
 | [World Entity Media — smoke editorial de Production](../operations/world-entity-media-production-smoke.md) | integrations/media + world | vigente | 2026-09-28 |
 | [Do ZIP à produção — páginas e mídia com fidelidade](../operations/zip-to-production.md) | frontend / integrations/media / operations | procedimento vigente; execução por entrega, sem importador genérico automático | 2026-09-20 |
 
@@ -249,4 +250,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-163 páginas inventariadas, além deste catálogo gerado. 14 sem Owner e 26 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+164 páginas inventariadas, além deste catálogo gerado. 14 sem Owner e 26 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

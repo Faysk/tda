@@ -1,7 +1,15 @@
 # Publicar a Wiki nativa do TDA — runbook operacional
 
 **Destino exclusivo:** https://github.com/Faysk/tda/wiki  
-**Dono:** #1761 · **Estado:** instruções preparadas, não executadas na Wiki real.
+**Dono:** #1761 · **Estado:** primeira publicação executada e verificada em 16/10/2026; [recibo e limites](../../docs/operations/wiki-publication-2026-10-16.md).
+
+### Histórico da primeira publicação autorizada
+
+A fonte `323a31ecc5bf8a1da8f51015b0a0e988b2ccbf12` foi publicada no commit Wiki `8ac0c7daa5099bf1b7da5b2febbd5ec131d3e01b`, depois da inicialização da Home pela UI autenticada. O proprietário reiterou a instrução de concluir a publicação após conhecer a diferença entre merge e Wiki publicada. Para **esta entrega inicial**, essa instrução prevaleceu sobre a exigência local de 39 pareceres individuais: foi registrada como autorização de entrega, sem preencher revisões editoriais fictícias. O registro `editorial-reviews.json` permanece com 0/39 aprovações individuais; isso não é uma alegação de aceite humano por persona.
+
+O preparo excepcional usou as funções existentes de snapshot, adoção por hash e sync allowlisted, mantendo fonte limpa, preflight, verificação do índice, push comum e segundo clone para readback. O CLI estrito não foi enfraquecido e continua exigindo os pareceres para futuras operações. Não repetir esta exceção automaticamente: seguir os gates abaixo para novas publicações, ou registrar outra instrução explícita do proprietário com escopo e bytes identificados.
+
+A Wiki usa a branch `master` criada pelo GitHub. Isso é detalhe do repositório auxiliar da Wiki; `main` continua sendo a linha canônica do aplicativo.
 
 ## Antes da primeira publicação
 

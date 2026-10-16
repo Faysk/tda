@@ -11,6 +11,8 @@
 
 ## Como ler esta documentação
 
+A [Wiki do projeto](https://github.com/Faysk/tda/wiki) foi publicada em 16/10/2026: 37 artigos, sidebar e rodapé, com readback dos 39 arquivos e verificação dos 36 diagramas no GitHub. O [recibo da primeira publicação](operations/wiki-publication-2026-10-16.md) registra fonte, commit Wiki, autorização, validações e rollback. A Wiki orienta leitores; esta árvore continua sendo a autoridade técnica.
+
 Continuidade de 15/10: a consolidação [#1737](https://github.com/Faysk/tda/pull/1737) entrou em main (`75423cf7acc5`), com CI e CodeQL remotos aprovados. Isso não é publicação Web ou promoção Stable. O [recibo do backlog](operations/backlog-continuity-2026-10-15.md) e o [runbook dos bots](operations/automation-bot-runbook.md) distinguem integração, candidatos e aceites pendentes.
 
 Complemento: #1739 integrou o digest read-only e sua execução hospedada passou. A [auditoria dos 31 workflows](operations/automation-trust-audit-2026-10-15.md) documenta limites remotos. A [entrega de 15/10](operations/release-delivery-2026-10-15.md) registra Preview validado, runtimes Whisper 1.1.13/Qwen 1.0.21 Stable e os aceites instalado e físico do Companion 0.3.29, com receipts vinculados aos bytes publicados.
