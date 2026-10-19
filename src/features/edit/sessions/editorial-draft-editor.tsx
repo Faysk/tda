@@ -184,8 +184,9 @@ export function SessionEditorialDraftEditor({
 	const recoveryKey = `session-editor:${sessionId}:${surface}`;
 	const dirty = !sameFields(fields, baseline) || JSON.stringify(comicPages) !== JSON.stringify(baselineComicPages);
 	const comicDraftIssues = validateSessionComicDraftPages(comicPages);
-	// Until HQ publication is supported, never silently publish only its text.
-	const comicPublicationBlocked = comicPages.length > 0;
+	const comicPublicationIssues = validateSessionComicDraftPages(comicPages, {
+		forPublication: true,
+	});
 	const missing = useMemo(
 		() =>
 			sessionDraftReadiness({
@@ -209,7 +210,7 @@ export function SessionEditorialDraftEditor({
 		!transcriptChanged &&
 		!coverUploadPending &&
 		!comicUploadPending &&
-		!comicPublicationBlocked &&
+		!comicPublicationIssues.length &&
 		phase !== "saving" &&
 		phase !== "conflict" &&
 		publishPhase !== "publishing";
@@ -384,8 +385,8 @@ export function SessionEditorialDraftEditor({
 								? "A transcrição mudou. Revise e salve um novo draft antes de publicar."
 								: missing.length
 									? "Complete os campos editoriais obrigatórios antes de publicar."
-									: comicPublicationBlocked
-									? "Esta versão possui páginas de HQ. A publicação de HQ ainda não foi ativada."
+									: comicPublicationIssues.length
+									? "Esta versão possui páginas de HQ. Preencha a descrição acessível de cada página da HQ."
 									: "O draft ainda não está pronto para publicação.",
 			);
 			return;
@@ -457,8 +458,8 @@ export function SessionEditorialDraftEditor({
 							? "A transcrição mudou desde a base do draft. Revise e salve antes de publicar."
 							: result.reason === "not_ready"
 								? "O draft não passou pela validação autoritativa de publicação."
-							: result.reason === "comic_not_ready"
-								? "A publicação de HQ ainda não está preparada neste ambiente."
+							: result.reason === "comic_unverified"
+								? "Uma ou mais páginas da HQ não puderam ser verificadas ou publicadas."
 								: result.reason === "cover_unverified"
 									? "A capa não pôde ser promovida e verificada publicamente. A versão anterior continua ativa."
 									: result.reason === "operation_conflict"
