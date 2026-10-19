@@ -1,4 +1,5 @@
 import { authorizeSessionComicTarget } from "@/features/edit/sessions/session-comic-media-access";
+import { sessionComicFeatureEnabled } from "@/features/edit/sessions/session-comic-feature";
 import {
 	isSessionComicMime,
 	isSessionComicSha256,
@@ -42,7 +43,7 @@ export async function GET(
 		params: Promise<{ sessionId: string; assetId: string }>;
 	},
 ) {
-	if (!worldEntityMediaEnabled()) return unavailable();
+	if (!sessionComicFeatureEnabled() || !worldEntityMediaEnabled()) return unavailable();
 	const { sessionId, assetId } = await params;
 	if (!isSessionComicUuid(sessionId) || !isSessionComicUuid(assetId))
 		return unavailable();
