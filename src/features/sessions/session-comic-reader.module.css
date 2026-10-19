@@ -1,0 +1,90 @@
+.reader {
+	display: grid;
+	gap: 22px;
+	min-width: 0;
+}
+
+.switcher {
+	display: inline-flex;
+	align-self: start;
+	gap: 4px;
+	padding: 4px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+}
+
+.switcher button {
+	min-width: 92px;
+	min-height: 40px;
+	padding: 8px 16px;
+	border: 0;
+	border-radius: var(--ds-radius-sm);
+	background: transparent;
+	color: var(--ds-foreground);
+	font: inherit;
+	cursor: pointer;
+}
+
+.switcher button[aria-pressed="true"] {
+	background: var(--ds-surface);
+	box-shadow: 0 1px 6px color-mix(in srgb, var(--ds-foreground) 12%, transparent);
+	font-weight: 700;
+}
+
+.switcher button:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.comic {
+	display: grid;
+	gap: 20px;
+	max-width: 900px;
+	margin-inline: auto;
+}
+
+.pageCount {
+	margin: 0;
+	text-align: center;
+	color: var(--ds-foreground-muted);
+	font-size: 0.84rem;
+}
+
+.pageList {
+	display: grid;
+	gap: 26px;
+	padding: 0;
+	margin: 0;
+	list-style: none;
+}
+
+.page figure {
+	display: grid;
+	gap: 8px;
+	margin: 0;
+}
+
+.page img {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	border-radius: var(--ds-radius-sm);
+}
+
+.page figcaption {
+	color: var(--ds-foreground-muted);
+	font-size: 0.9rem;
+	line-height: 1.5;
+	text-align: center;
+}
+
+@media (max-width: 700px) {
+	.switcher {
+		width: 100%;
+	}
+
+	.switcher button {
+		flex: 1;
+	}
+}
