@@ -66,4 +66,8 @@ Estes SQL permanecem deliberadamente fora de Production:
 - `candidates/20260930191500_harden_campaign_discovery_authorization.sql` — candidate #1134 para discovery público/Edit, capability exata e hardening de `access_directory`; depende de #1123 e permanece scratch-only até rollout deliberado.
 - `candidates/20261001030000_session_campaign_move.sql` — candidate #1129 para preflight/commit transacional de move entre campanhas, audit/receipt idempotente e bloqueio fail-closed de dependências ainda não migráveis; depende de #1123/#1134 e permanece scratch-only.
 
+- `candidates/20261019153000_session_comic_media_constraints.sql` — candidato #1765 para role/namespace de imagens de HQ; **não aplicado**.
+- `candidates/20261019163000_session_comic_editorial_draft.sql` — candidato #1765 para páginas de HQ persistidas em draft com CAS; **não aplicado** e dependente do candidato anterior.
+- `candidates/20261019173000_session_comic_publication.sql` — candidato #1765 para ligar HQ verificada à publicação editorial atómica; **não aplicado**.
+
 Os contratos e gates de ativação continuam em `docs/integrations/transcript-import.md`, `docs/features/world-entity-media-foundation.md` e `docs/database/migrations.md`.

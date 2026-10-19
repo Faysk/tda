@@ -161,6 +161,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — contrato de dados para relações](../features/relations-data-contract.md) | narrative-memory / database / security | fundação física aplicada; provenance/review e vocabulário factual continuam em evolução | 2026-09-19 |
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | fundação física e autoria factual implementadas; provenance/review integrado ao fluxo editorial; dataset público real ainda depende de curadoria e ativação deliberada | 2026-09-16 |
 | [Feature — Busca semântica com fontes](../features/semantic-search.md) | search/narrative-memory | em desenho | 2026-09-06 |
+| [HQ nas sessões — contrato e implementação faseada (#1765)](../features/session-comics.md) | sessions / edit | candidato em desenvolvimento; sem publicação | 2026-10-19 |
 | [Transcrição — runs locais, revisão, comparação e publicação versionada](../features/transcript-review-publication.md) | Edit / processamento local / transcript-sync | contrato vigente; runs locais, revisão/CAS, comparação e publicação explícita implementados; backlog futuro separado abaixo | 2026-10-06 |
 | [Estatísticas privadas de transcrições](../features/transcript-statistics.md) | transcrições / leitura e estatísticas | publicado em Production; read model bounded canônico; benchmark autenticado concluído | 2026-09-28 |
 | [World entity media foundation](../features/world-entity-media-foundation.md) | narrative-memory / integrations-media / frontend | implementação candidata; schema remoto não aplicado | 2026-09-22 |
@@ -250,4 +251,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-164 páginas inventariadas, além deste catálogo gerado. 14 sem Owner e 26 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+165 páginas inventariadas, além deste catálogo gerado. 14 sem Owner e 26 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

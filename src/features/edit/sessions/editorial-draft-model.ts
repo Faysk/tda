@@ -1,3 +1,5 @@
+import type { SessionComicDraftPage } from "./session-comic-model";
+
 export const SESSION_DRAFT_LIMITS = {
 	arc: 300,
 	title: 500,
@@ -17,6 +19,7 @@ export type SessionEditorialDraft = Readonly<{
 	title: string;
 	shortDescription: string;
 	fullSummary: string;
+	comicPages?: readonly SessionComicDraftPage[];
 	updatedAt: string | null;
 	sessionStatus: string;
 	sessionDate: string | null;
@@ -32,6 +35,7 @@ export type SessionEditorialDraftInput = Readonly<{
 	title: string;
 	shortDescription: string;
 	fullSummary: string;
+	comicPages?: readonly SessionComicDraftPage[];
 	sessionDate: string;
 }>;
 

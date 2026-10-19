@@ -184,6 +184,11 @@ try:
         repo / "supabase/migrations/20260928011000_session_editorial_date.sql",
         repo / "supabase/tests/session_publication_atomic.sql",
         repo / "supabase/tests/session_editorial_date_atomic.sql",
+        # #1765: deployable HQ migrations are also validated against this disposable socket-only DB.
+        repo / "supabase/migrations/20261019153000_session_comic_media_constraints.sql",
+        repo / "supabase/migrations/20261019163000_session_comic_editorial_draft.sql",
+        repo / "supabase/migrations/20261019173000_session_comic_publication.sql",
+        repo / "supabase/tests/session_comic_publication_atomic.sql",
     ]
     for path in paths:
         try:

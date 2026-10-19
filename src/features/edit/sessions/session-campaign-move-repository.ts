@@ -1,6 +1,7 @@
 import "server-only";
 
 import { editDataClient } from "@/integrations/supabase/server";
+import { sessionComicFeatureEnabled } from "./session-comic-feature";
 import {
 	isSessionCoverMime,
 	isSessionCoverUuid,
@@ -113,6 +114,52 @@ function boundaryParams(input: MoveBoundaryInput) {
 		p_session_id: input.sessionId,
 		p_source_session_id: input.sourceSessionId,
 	};
+}
+
+/**
+ * The campaign-move RPC predates HQ media and does not migrate comic assets
+ * or immutable public snapshots. Block moves while any HQ image/page exists
+ * rather than leave cross-campaign URLs or draft references behind.
+ *
+ * This is deliberately strict and only queries the new schema when enabled.
+ * A failed lookup is treated as a blocker (fail closed).
+ */
+export async function sessionComicMoveBlocked(input: {
+	sessionId: string;
+	campaignId: string;
+	campaignSlug: string;
+}): Promise<boolean> {
+	if (!sessionComicFeatureEnabled()) return false;
+	const client = editDataClient();
+	if (!client) return true;
+	try {
+		const [drafts, publications, assets] = await Promise.all([
+			client.from("session_editorial_drafts")
+				.select("comic_pages")
+				.eq("session_id", input.sessionId)
+				.eq("campaign_id", input.campaignId),
+			client.from("session_publications")
+				.select("comic_pages")
+				.eq("session_id", input.sessionId)
+				.eq("campaign_id", input.campaignId),
+			client.from("media_assets")
+				.select("id")
+				.eq("campaign_id", input.campaignId)
+				.eq("role_hint", "session_comic_page")
+				.like("object_key", `campaigns/${input.campaignSlug}/sessions/${input.sessionId}/comic/%`)
+				.limit(1),
+		]);
+		if (drafts.error || publications.error || assets.error) return true;
+		if (!Array.isArray(drafts.data) || !Array.isArray(publications.data) || !Array.isArray(assets.data))
+			return true;
+		return (
+			drafts.data.some((row) => Array.isArray(row.comic_pages) && row.comic_pages.length > 0) ||
+			publications.data.some((row) => Array.isArray(row.comic_pages) && row.comic_pages.length > 0) ||
+			assets.data.length > 0
+		);
+	} catch {
+		return true;
+	}
 }
 
 export async function sessionCampaignMoveBackendReady(): Promise<boolean> {

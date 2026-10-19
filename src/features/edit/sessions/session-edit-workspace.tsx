@@ -7,7 +7,7 @@ import { TranscriptReader } from "@/features/edit/transcript/reader";
 import { SessionEditorialDraftEditor } from "./editorial-draft-editor";
 import styles from "./session-edit-workspace.module.css";
 
-type WorkspaceTab = "transcript" | "session" | "summary";
+type WorkspaceTab = "transcript" | "session" | "summary" | "comic";
 
 type TranscriptProps = Omit<
 	ComponentProps<typeof TranscriptReader>,
@@ -42,6 +42,7 @@ const TABS: ReadonlyArray<Readonly<{ id: WorkspaceTab; label: string }>> = [
 	{ id: "transcript", label: "Transcrição" },
 	{ id: "session", label: "Sessão" },
 	{ id: "summary", label: "Resumo / Preview" },
+	{ id: "comic", label: "HQ" },
 ];
 
 const EDITORIAL_TABS: ReadonlyArray<
@@ -49,6 +50,7 @@ const EDITORIAL_TABS: ReadonlyArray<
 > = [
 	{ id: "session", label: "Sessão" },
 	{ id: "summary", label: "Resumo / Preview" },
+	{ id: "comic", label: "HQ" },
 ];
 
 export function SessionEditWorkspace({
@@ -59,8 +61,10 @@ export function SessionEditWorkspace({
 }: Props) {
 	const [activeTab, setActiveTab] = useState<WorkspaceTab>("transcript");
 	const [focusedPane, setFocusedPane] = useState<"transcript" | "editorial">("transcript");
-	const editorialSurface = activeTab === "summary" ? "summary" : "session";
-	const mobileTabs = editorial ? TABS : TABS.filter((tab) => tab.id !== "summary");
+	const editorialSurface = activeTab === "summary" ? "summary" : activeTab === "comic" ? "comic" : "session";
+	const mobileTabs = editorial
+		? TABS.filter((tab) => tab.id !== "comic" || editorial.comicEnabled)
+		: TABS.filter((tab) => tab.id === "transcript" || tab.id === "session");
 
 	return (
 		<div className={styles.workspace}>
@@ -120,7 +124,7 @@ export function SessionEditWorkspace({
 						aria-label="Painel editorial"
 						role="tablist"
 					>
-						{EDITORIAL_TABS.map((tab) => {
+						{EDITORIAL_TABS.filter((tab) => tab.id !== "comic" || editorial.comicEnabled).map((tab) => {
 							const active = editorialSurface === tab.id;
 							return (
 								<button

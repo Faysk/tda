@@ -2005,3 +2005,13 @@ Aplicação remota e pós-validação: pendentes do CD deliberado. Conferir hist
 ### `20261007202500_assembly_validation_bounded.sql` — private handoff budget (#1578, candidate)
 
 Declares `statement_timeout=30s` only on the existing server-only private handoff entry point and reloads PostgREST's schema cache. It addresses the confirmed inherited-eight-second Production cancellation while preserving all function bodies, invoker/execute ACL, actor/hash/CAS checks, atomic commit and inherited lock budget. No rows, tables, roles or global settings change. Full scratch chain includes an 8,019-segment v3 handoff, exact two-part receipt, identical replay, invalid final timestamp rejection and function configuration/privilege checks. Live migration history and preserved-operation Library receipt remain required. Rollback resets the function timeout and reloads schema cache while retaining immutable accepted rows.
+
+## Candidatos de HQ — #1765 (não aplicados)
+
+Ambos os arquivos abaixo estão exclusivamente em `supabase/candidates/`, não em `supabase/migrations/` nem no migration history de Production:
+
+- `20261019153000_session_comic_media_constraints.sql` — candidato #1765 para adicionar papel/namespace de imagem HQ à governança de mídia; **não aplicado**, requer teste scratch e revisão de constraints.
+- `20261019163000_session_comic_editorial_draft.sql` — candidato #1765 para persistir páginas HQ em drafts editoriais via RPC CAS validada; **não aplicado**, depende do candidato anterior e de publicação versionada posterior.
+- `20261019173000_session_comic_publication.sql` — candidato #1765 para snapshot público ordenado da HQ, validação SQL das imagens e binding atómico à operação editorial; **não aplicado**, depende dos dois candidatos de HQ anteriores.
+
+A promoção exige validação local do PostgreSQL, integração com snapshot público e autorização da equipa. A interface editorial ativa continua usando os RPCs atuais até o fluxo completo ser aprovado.
