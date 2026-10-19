@@ -135,3 +135,15 @@ export function readPublishedSessionComicPages(
 	}
 	return result;
 }
+
+/** Defensive mapper for private JSONB draft pages returned by the server. */
+export function readSessionComicDraftPages(
+	value: unknown,
+): readonly SessionComicDraftPage[] | null {
+	if (validateSessionComicDraftPages(value).length) return null;
+	return (value as SessionComicDraftPage[]).map((page) => ({
+		assetId: page.assetId.toLowerCase(),
+		altText: page.altText,
+		caption: page.caption,
+	}));
+}
