@@ -68,5 +68,6 @@ Estes SQL permanecem deliberadamente fora de Production:
 
 - `candidates/20261019153000_session_comic_media_constraints.sql` — candidato #1765 para role/namespace de imagens de HQ; **não aplicado**.
 - `candidates/20261019163000_session_comic_editorial_draft.sql` — candidato #1765 para páginas de HQ persistidas em draft com CAS; **não aplicado** e dependente do candidato anterior.
+- `candidates/20261019173000_session_comic_publication.sql` — candidato #1765 para ligar HQ verificada à publicação editorial atómica; **não aplicado**.
 
 Os contratos e gates de ativação continuam em `docs/integrations/transcript-import.md`, `docs/features/world-entity-media-foundation.md` e `docs/database/migrations.md`.
