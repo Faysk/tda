@@ -129,6 +129,30 @@ begin
       public_verified_at=clock_timestamp()
   where id=v_asset;
 
+  -- A matching public object key does not suffice if the asset was
+  -- promoted into a different bucket or its digest metadata was modified.
+  update public.media_assets set public_bucket='wrong-bucket' where id=v_asset;
+  select p.status into v_status
+  from public.publish_session_editorial_with_comic_atomic(
+    v_actor,'synthetic-campaign',v_session,v_draft_id,v_current_publication,
+    v_operation,v_cover_url,v_public_pages
+  ) p;
+  if v_status <> 'comic_unverified' then
+    raise exception 'HQ_WRONG_PUBLIC_BUCKET_ACCEPTED:%',v_status;
+  end if;
+  update public.media_assets
+  set public_bucket='tda-media-public', sha256=repeat('c',64)
+  where id=v_asset;
+  select p.status into v_status
+  from public.publish_session_editorial_with_comic_atomic(
+    v_actor,'synthetic-campaign',v_session,v_draft_id,v_current_publication,
+    v_operation,v_cover_url,v_public_pages
+  ) p;
+  if v_status <> 'comic_unverified' then
+    raise exception 'HQ_MISMATCHED_DIGEST_ACCEPTED:%',v_status;
+  end if;
+  update public.media_assets set sha256=repeat('b',64) where id=v_asset;
+
   v_bad_pages := jsonb_build_array(jsonb_build_object(
     'imageUrl','https://media.dnd.faysk.dev/campaigns/other/sessions/'
       || v_session || '/comic/' || repeat('b',64) || '.webp',
