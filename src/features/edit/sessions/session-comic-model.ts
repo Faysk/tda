@@ -22,6 +22,8 @@ export type SessionComicPublishedPage = Readonly<{
 	imageUrl: string;
 	altText: string;
 	caption: string;
+	width: number;
+	height: number;
 }>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -104,7 +106,12 @@ export function readPublishedSessionComicPages(
 			typeof page.imageUrl !== "string" ||
 			!validCopy(page.altText, SESSION_COMIC_LIMITS.altText) ||
 			!page.altText.trim() ||
-			!validCopy(page.caption, SESSION_COMIC_LIMITS.caption)
+			!validCopy(page.caption, SESSION_COMIC_LIMITS.caption) ||
+			!Number.isSafeInteger(page.width) ||
+			!Number.isSafeInteger(page.height) ||
+			(page.width as number) < 1 ||
+			(page.height as number) < 1 ||
+			(page.width as number) * (page.height as number) > 64_000_000
 		)
 			return null;
 		let url: URL;
@@ -131,6 +138,8 @@ export function readPublishedSessionComicPages(
 			imageUrl: url.toString(),
 			altText: page.altText,
 			caption: page.caption,
+			width: page.width as number,
+			height: page.height as number,
 		});
 	}
 	return result;
