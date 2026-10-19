@@ -112,6 +112,12 @@ export async function readSessionEditorialDraft(
 	if (!baseTranscriptRevisionId || !parsedDraftId || revision === null || !updatedAt)
 		throw new Error("Editorial draft metadata is invalid");
 
+	const comicPages = sessionComicFeatureEnabled()
+		? readSessionComicDraftPages(draft.comic_pages)
+		: [];
+	if (comicPages === null)
+		throw new Error("Editorial comic draft metadata is invalid");
+
 	return {
 		draftId: parsedDraftId,
 		revision,
@@ -123,9 +129,7 @@ export async function readSessionEditorialDraft(
 		title: text(draft.title),
 		shortDescription: text(draft.summary_short),
 		fullSummary: text(draft.summary_full),
-		comicPages: sessionComicFeatureEnabled()
-			? readSessionComicDraftPages(draft.comic_pages) ?? []
-			: [],
+		comicPages,
 		updatedAt,
 		sessionStatus: text(session.status) || "unknown",
 		sessionDate:
