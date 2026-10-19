@@ -6,6 +6,8 @@ import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { readSessionEditorialDraft } from "./editorial-draft-repository";
 import { resolveEditSessionCampaign } from "./repository";
 import { sessionComicFeatureEnabled } from "./session-comic-feature";
+import { validateSessionComicDraftPages } from "./session-comic-model";
+import { prepareSessionComicForPublication } from "./session-comic-publication";
 import { sessionDraftReadiness } from "./editorial-draft-model";
 import {
 	type SessionPublicationRequest,
@@ -130,9 +132,13 @@ export async function publishSessionEditorialDraftAction(
 		}
 		if (draft.transcriptChanged)
 			return { ok: false as const, reason: "transcript_changed" as const };
-		// Never silently publish only the Markdown when an HQ draft is present.
-		if (sessionComicFeatureEnabled() && (draft.comicPages?.length ?? 0) > 0)
-			return { ok: false as const, reason: "comic_not_ready" as const };
+		if (sessionComicFeatureEnabled()) {
+			const comicIssues = validateSessionComicDraftPages(draft.comicPages ?? [], {
+				forPublication: true,
+			});
+			if (comicIssues.length)
+				return { ok: false as const, reason: "comic_unverified" as const };
+		}
 
 		const missing = sessionDraftReadiness(draft);
 		if (missing.length)
@@ -155,7 +161,19 @@ export async function publishSessionEditorialDraftAction(
 		if (!publicCoverUrl)
 			return { ok: false as const, reason: "cover_unverified" as const };
 
+		const publicComicPages = sessionComicFeatureEnabled()
+			? await prepareSessionComicForPublication({
+					sessionId: request.sessionId,
+					campaignId: context.campaignId,
+					campaignSlug: sessionCampaign.technicalSlug,
+					pages: draft.comicPages ?? [],
+				})
+			: null;
+		if (sessionComicFeatureEnabled() && publicComicPages === null)
+			return { ok: false as const, reason: "comic_unverified" as const };
+
 		const committed = await persistSessionPublication({
+			publicComicPages,
 			actorProfileId: access.profileId,
 			campaignSlug: sessionCampaign.technicalSlug,
 			request,
