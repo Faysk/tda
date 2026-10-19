@@ -55,7 +55,7 @@ O domínio atual possui `session_editorial_drafts`, `session_publications`, `ses
 
 Evoluir a estrutura de draft/publicação com uma migration revista, páginas ordenadas por posição e vínculo a `campaign_id`, `session_id`, `draft_id`/ `publication_id`. Preservar CAS, revision, idempotência por `operation_id`, `payload_sha256`, rollback e auditoria existentes. Cuidado com wrappers de data que recalculam o hash. Salvar metadados e ordem num único commit de draft e publicar snapshot da mesma revisão.
 
-O movimento de sessão entre campanhas (migrações de outubro) também precisa contemplar o namespace de mídia HQ, sem deixar imagens sob a campanha errada.
+O movimento de sessão entre campanhas (migrações de outubro) também precisa contemplar o namespace de mídia HQ, sem deixar imagens sob a campanha errada. **Guarda preventiva já implementada na PR:** com `TDA_SESSION_COMICS_ENABLED=true`, o preflight e o commit de movimentação bloqueiam a operação se houver páginas no draft, snapshots publicados ou qualquer asset HQ pertencente à sessão. Um erro de leitura também bloqueia (fail closed). Mover sessões sem HQ permanece suportado. O desbloqueio exige integração explícita ao pipeline de movimento de mídia e migração de snapshots, com testes multi-campanha.
 
 ### 3. UX do editor
 
