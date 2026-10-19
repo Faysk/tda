@@ -152,7 +152,9 @@ begin
       jsonb_build_object(
         'imageUrl', 'https://media.dnd.faysk.dev/' || v_asset.public_object_key,
         'altText', v_alt,
-        'caption', v_caption
+        'caption', v_caption,
+        'width', v_asset.width,
+        'height', v_asset.height
       )
     );
   end loop;
@@ -239,6 +241,7 @@ comment on function public.publish_session_editorial_with_comic_atomic(
 
       and a.mime_type in ('image/png', 'image/webp')
       and a.byte_size > 0 and a.width > 0 and a.height > 0
+      and (a.width::bigint * a.height::bigint) <= 64000000
       and a.object_key = a.public_object_key
       and a.object_key = v_expected_key_prefix || a.sha256 ||
         case when a.mime_type = 'image/png' then '.png' else '.webp' end
