@@ -21,8 +21,8 @@ const draftPages = [
 	{ assetId: secondAssetId, altText: "Esferas pairam no vazio", caption: "Capítulo I" },
 ] as const;
 const publishedPages = [
-	{ imageUrl: publicPrefix + firstHash + ".webp", altText: "A árvore", caption: "" },
-	{ imageUrl: publicPrefix + secondHash + ".png", altText: "As esferas", caption: "O caminho" },
+	{ imageUrl: publicPrefix + firstHash + ".webp", altText: "A árvore", caption: "", width: 900, height: 1300 },
+	{ imageUrl: publicPrefix + secondHash + ".png", altText: "As esferas", caption: "O caminho", width: 1600, height: 900 },
 ] as const;
 
 describe("session HQ draft contract", () => {
@@ -128,6 +128,21 @@ describe("published session HQ boundary", () => {
 				sessionId,
 			),
 		).toBeNull();
+	});
+
+	it("uses each verified image ratio and rejects invalid dimensions", () => {
+		expect(readPublishedSessionComicPages(publishedPages, campaign, sessionId)?.map(
+		(page) => [page.width, page.height],
+	)).toEqual([[900, 1300], [1600, 900]]);
+	for (const width of [0, -1, 1.5, 100_000, "900"]) {
+		expect(
+			readPublishedSessionComicPages(
+				[{ ...publishedPages[0], width }],
+				campaign,
+				sessionId,
+			),
+		).toBeNull();
+	}
 	});
 
 	it("fails closed instead of rendering an incomplete sequence", () => {
