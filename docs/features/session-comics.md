@@ -12,40 +12,48 @@ O usuário já possui as **imagens finais** da HQ. O TDA será o lugar de **orga
 
 A HQ é uma **segunda leitura da mesma sessão publicada**. O resumo Markdown permanece intocado e continua sendo a leitura padrão. Sessões sem HQ não recebem alternância vazia.
 
-A gestão editorial pertence ao **mesmo workspace privado** de \`/edit/sessoes/[id]\`: idealmente uma nova aba **HQ** junto de **Sessão** e **Resumo / Preview**, com permissão de edição e ações de salvar/publicar coerentes com as existentes. Não criar um painel externo ou solicitar alterações diretas no GitHub.
+A gestão editorial pertence ao **mesmo workspace privado** de `/edit/sessoes/[id]`: idealmente uma nova aba **HQ** junto de **Sessão** e **Resumo / Preview**, com permissão de edição e ações de salvar/publicar coerentes com as existentes. Não criar um painel externo ou solicitar alterações diretas no GitHub.
 
 ## Contrato de páginas: primeira parte implementada
 
-\`src/features/edit/sessions/session-comic-model.ts\` contém um contrato puro, sem acesso a dados:
+`src/features/edit/sessions/session-comic-model.ts` contém um contrato puro, sem acesso a dados:
 
-- \`SessionComicDraftPage\`: \`assetId\` (UUID opaco), \`altText\`, \`caption\`. A posição no array determina a ordem. O draft **não guarda URLs públicas**.
-- \`SessionComicPublishedPage\`: \`imageUrl\`, \`altText\`, \`caption\`. Somente URLs de objetos HQ imutáveis no namespace de **campanha técnica + session UUID** são admitidas no leitor público.
+- `SessionComicDraftPage`: `assetId` (UUID opaco), `altText`, `caption`. A posição no array determina a ordem. O draft **não guarda URLs públicas**.
+- `SessionComicPublishedPage`: `imageUrl`, `altText`, `caption`. Somente URLs de objetos HQ imutáveis no namespace de **campanha técnica + session UUID** são admitidas no leitor público.
 - Validadores rejeitam identidades inválidas, páginas duplicadas, campos inesperados, conteúdo inválido e URLs de outras campanhas/sessões. Para publicar páginas, cada imagem precisa de descrição acessível.
 - Limites iniciais para validação de metadados (150 páginas por sessão, 500 caracteres de alt, 1000 de legenda) são guardrails de contrato, sujeitos à validação de produto e performance antes do lançamento.
 - Array vazio é válido: HQ **opcional**, texto preservado.
 
-**Importante:** este modelo **não autoriza** um asset por si só. O servidor deve verificar que \`media_assets.id\` é um objeto realmente validado, está ligado à session UUID e pertence à mesma campaign ID. A validação pública é defesa adicional e não substitui promoção/autorização.
+**Importante:** este modelo **não autoriza** um asset por si só. O servidor deve verificar que `media_assets.id` é um objeto realmente validado, está ligado à session UUID e pertence à mesma campaign ID. A validação pública é defesa adicional e não substitui promoção/autorização.
+
+## Infraestrutura preparada na PR draft — não ativada
+
+O transporte privado de HQ e o componente de organização visual já existem **somente na PR draft**, ainda não ligados ao editor de sessões. Foram adicionados `session-comic-media*.ts`, `session-comic-editor.tsx`, os endpoints privados e os respetivos testes de contrato.
+
+Os SQL `supabase/candidates/20261019153000_session_comic_media_constraints.sql` e `supabase/candidates/20261019163000_session_comic_editorial_draft.sql` continuam **candidatos não aplicados**, requerendo revisão e prova num PostgreSQL descartável. Os RPCs ativos de save e publish do resumo permanecem inalterados, para não introduzir alterações incompatíveis antes da publicação de HQ estar pronta.
+
+As secções seguintes são pendências para ativação segura, não funcionalidades atualmente acessíveis na plataforma.
 
 ## Implementação seguinte (não concluída)
 
 ### 1. Upload privado
 
-- Adaptar o pipeline R2 de capas como padrão, mas não reutilizar \`role_hint=session_cover\` nem \`/cover/\` para páginas de HQ.
-- Propor \`role_hint=session_comic_page\`, uploads \`/comic/\` e preview autorizado, com chunks, hash, MIME real, dimensões, read-back e verificação de bucket, conforme pipeline governado já existente.
+- Adaptar o pipeline R2 de capas como padrão, mas não reutilizar `role_hint=session_cover` nem `/cover/` para páginas de HQ.
+- Propor `role_hint=session_comic_page`, uploads `/comic/` e preview autorizado, com chunks, hash, MIME real, dimensões, read-back e verificação de bucket, conforme pipeline governado já existente.
 - Confirmar necessidade de JPG/JPEG além de PNG/WebP, considerando **o formato real das imagens que serão anexadas**. Não aceitar extensões ou MIME por confiança no browser.
 - Considerar grandes lotes: fila limitada, progresso por ficheiro, falhas recuperáveis e nenhuma mutação de publicação durante upload.
 - Não apagar objeto de uma publicação antiga quando o editor o retirar de um draft.
 
 ### 2. Persistência versionada
 
-O domínio atual possui \`session_editorial_drafts\`, \`session_publications\`, \`session_publication_operations\` e RPCs atómicas:
+O domínio atual possui `session_editorial_drafts`, `session_publications`, `session_publication_operations` e RPCs atómicas:
 
-- \`save_session_editorial_draft_with_date_atomic\`;
-- \`publish_session_editorial_with_date_atomic\`.
+- `save_session_editorial_draft_with_date_atomic`;
+- `publish_session_editorial_with_date_atomic`.
 
-**Não** adicionar páginas ao site público escrevendo diretamente na tabela \`sessions\`, em \`metadata\` sem contrato ou em JSON isolado fora do mecanismo de publicação.
+**Não** adicionar páginas ao site público escrevendo diretamente na tabela `sessions`, em `metadata` sem contrato ou em JSON isolado fora do mecanismo de publicação.
 
-Evoluir a estrutura de draft/publicação com uma migration revista, páginas ordenadas por posição e vínculo a \`campaign_id\`, \`session_id\`, \`draft_id\`/ \`publication_id\`. Preservar CAS, revision, idempotência por \`operation_id\`, \`payload_sha256\`, rollback e auditoria existentes. Cuidado com wrappers de data que recalculam o hash. Salvar metadados e ordem num único commit de draft e publicar snapshot da mesma revisão.
+Evoluir a estrutura de draft/publicação com uma migration revista, páginas ordenadas por posição e vínculo a `campaign_id`, `session_id`, `draft_id`/ `publication_id`. Preservar CAS, revision, idempotência por `operation_id`, `payload_sha256`, rollback e auditoria existentes. Cuidado com wrappers de data que recalculam o hash. Salvar metadados e ordem num único commit de draft e publicar snapshot da mesma revisão.
 
 O movimento de sessão entre campanhas (migrações de outubro) também precisa contemplar o namespace de mídia HQ, sem deixar imagens sob a campanha errada.
 
@@ -62,7 +70,7 @@ O movimento de sessão entre campanhas (migrações de outubro) também precisa 
 - Exibir **Texto | HQ** apenas quando o snapshot ativo possuir páginas publicadas.
 - Renderizar sequência responsiva, alt/legenda e carregamento progressivo; evitar baixar todas as imagens de uma vez.
 - Metadados de sessão, capa, compartilhamento e anterior/próxima não mudam. Índice de headings é exclusivo da leitura em texto.
-- O arquivo público não passa a consultar transcrição, \`media_assets\` privada ou fontes de processamento.
+- O arquivo público não passa a consultar transcrição, `media_assets` privada ou fontes de processamento.
 - Estender contrato de detalhe publicado sem quebrar consumidores legados nem expor páginas de draft.
 - Garantir fallback seguro para campanhas private/archived e ausência ou indisponibilidade de dados.
 
