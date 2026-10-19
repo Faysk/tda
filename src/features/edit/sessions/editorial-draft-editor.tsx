@@ -181,7 +181,9 @@ export function SessionEditorialDraftEditor({
 	const publicationDialogRef = useRef<HTMLDialogElement>(null);
 	const publicationDialogTitleRef = useRef<HTMLElement>(null);
 	const publicationTriggerRef = useRef<HTMLButtonElement>(null);
-	const recoveryKey = `session-editor:${sessionId}:${surface}`;
+	// The same editable draft stays mounted while the user switches tabs.
+	// Recovery must be keyed by session, not by the current visual surface.
+	const recoveryKey = `session-editor:${sessionId}`;
 	const dirty = !sameFields(fields, baseline) || JSON.stringify(comicPages) !== JSON.stringify(baselineComicPages);
 	const comicDraftIssues = validateSessionComicDraftPages(comicPages);
 	const comicPublicationIssues = validateSessionComicDraftPages(comicPages, {
@@ -234,13 +236,24 @@ export function SessionEditorialDraftEditor({
 	}, [initial.currentTranscriptRevisionId]);
 
 	useEffect(() => {
-		const recovered = validRecoveredFields(
-			readStaleActionRecovery<Partial<Fields>>(recoveryKey),
-		);
-		if (!recovered) return;
-		setFields((current) => ({ ...current, ...recovered }));
+		const payload = readStaleActionRecovery<unknown>(recoveryKey);
+		const recovered = validRecoveredFields(payload);
+		const storedPages =
+			comicEnabled &&
+			payload !== null &&
+			typeof payload === "object" &&
+			"comicPages" in payload
+				? (payload as Record<string, unknown>).comicPages
+				: null;
+		const restoredPages =
+			storedPages !== null && validateSessionComicDraftPages(storedPages).length === 0
+				? (storedPages as readonly SessionComicDraftPage[])
+				: null;
+		if (!recovered && restoredPages === null) return;
+		if (recovered) setFields((current) => ({ ...current, ...recovered }));
+		if (restoredPages !== null) setComicPages(restoredPages);
 		setStaleRecovery("restored");
-	}, [recoveryKey]);
+	}, [recoveryKey, comicEnabled]);
 
 	useEffect(() => {
 		setCurrentPublicationId(initialPublication.currentPublicationId);
@@ -284,7 +297,13 @@ export function SessionEditorialDraftEditor({
 			setStaleRecovery("idle");
 		} catch (error) {
 			if (isStaleServerActionError(error)) {
-				persistStaleActionRecovery(recoveryKey, changedFields(fields, baseline));
+				persistStaleActionRecovery(recoveryKey, {
+					...changedFields(fields, baseline),
+					...(comicEnabled &&
+					JSON.stringify(comicPages) !== JSON.stringify(baselineComicPages)
+						? { comicPages }
+						: {}),
+				});
 				setStaleRecovery("stale");
 				setPhase("error");
 				setMessage(
