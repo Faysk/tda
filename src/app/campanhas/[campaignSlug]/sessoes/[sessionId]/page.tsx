@@ -12,6 +12,8 @@ import { resolveSessionReaderArtwork } from "@/features/sessions/reader-artwork"
 import { formatSessionDate, sessionPublicPath, type PublishedSession } from "@/features/sessions/model";
 import { findPublishedSession, findPublishedSessionNeighbors, PublishedSessionUnavailableError } from "@/features/sessions/repository";
 import { sessionShareDescription } from "@/features/sessions/share";
+import { findPublishedSessionComic } from "@/features/sessions/comic-publication";
+import { SessionComicReader } from "@/features/sessions/session-comic-reader";
 import { buildStoryOutline } from "@/features/sessions/story-outline";
 import styles from "../../../../sessoes/[id]/page.module.css";
 
@@ -108,6 +110,7 @@ export default async function CampaignSession({params}:Params){
 	}
 	if(!session) notFound();
 	const neighbors=await findPublishedSessionNeighbors(session).catch(()=>null);
+	const comicPages=await findPublishedSessionComic(session).catch(()=>[]);
 	const previous=neighbors?.previous;
 	const next=neighbors?.next;
 	const date=formatSessionDate(session.date);
@@ -126,8 +129,10 @@ export default async function CampaignSession({params}:Params){
 		</div></div></header>
 		<div className={styles.body} data-session-reading>
 			<div className={styles.readingIntro}><span className={styles.chapterMark} aria-hidden="true">◆</span><SessionShareActions title={session.title} description={sessionShareDescription(session.summary,session.title)}/></div>
-			{outline.length>=4?<SessionOutlineNav entries={outline}/>:null}
-			<StoryMarkdown source={story} title={session.title}/>
+			<SessionComicReader pages={comicPages} textView={<>
+				{outline.length>=4?<SessionOutlineNav entries={outline}/>:null}
+				<StoryMarkdown source={story} title={session.title}/>
+			</>}/>
 			{previous||next?<nav className={styles.pagination} aria-label="Navegação entre sessões">
 				{previous?<NavigationCard session={previous} direction="previous"/>:null}
 				{next?<NavigationCard session={next} direction="next"/>:null}
