@@ -1,7 +1,4 @@
-import {
-	LEGACY_CAMPAIGN_MEDIA_KEY,
-	isCampaignMediaKey,
-} from "@/features/media/campaign-media";
+import { isCampaignMediaKey } from "@/features/media/campaign-media";
 import {
 	SESSION_COVER_MEDIA_MAX_BYTES,
 	SESSION_COVER_MEDIA_MAX_PIXELS,
@@ -115,17 +112,5 @@ export function sessionComicPreviewUrl(
 		encodeURIComponent(sessionId.toLowerCase()) +
 		"/" +
 		encodeURIComponent(assetId.toLowerCase())
-	);
-}
-
-/**
- * Legacy/public media URL references intentionally are not accepted as new
- * comic-page draft assets. The editor must upload pages under this namespace.
- */
-export function isSessionComicMediaKey(value: unknown): boolean {
-	return (
-		typeof value === "string" &&
-		isCampaignMediaKey(value) &&
-		value !== LEGACY_CAMPAIGN_MEDIA_KEY
 	);
 }
