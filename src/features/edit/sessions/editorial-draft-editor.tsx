@@ -12,6 +12,8 @@ import {
 import { formatSessionDate } from "@/features/sessions/model";
 import styles from "@/features/edit/workbench.module.css";
 import draftStyles from "./editorial-draft.module.css";
+import { SessionComicEditor } from "./session-comic-editor";
+import { validateSessionComicDraftPages, type SessionComicDraftPage } from "./session-comic-model";
 import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
 import { publishSessionEditorialDraftAction } from "./session-publication-actions";
 import type { SessionPublicationState } from "./session-publication-model";
@@ -32,6 +34,7 @@ export type SessionEditorialDraftEditorTransport = Readonly<{
 	saveDraft: typeof saveSessionEditorialDraftAction;
 	publishDraft: typeof publishSessionEditorialDraftAction;
 	CoverEditor: typeof SessionCoverEditor;
+	ComicEditor?: typeof SessionComicEditor;
 }>;
 
 type Props = Readonly<{
@@ -41,7 +44,8 @@ type Props = Readonly<{
 	editable: boolean;
 	publishable: boolean;
 	publicationAvailable: boolean;
-	surface?: "session" | "summary";
+	surface?: "session" | "summary" | "comic";
+	comicEnabled?: boolean;
 	active?: boolean;
 	onPreview?: () => void;
 	transport?: SessionEditorialDraftEditorTransport;
@@ -125,6 +129,7 @@ export function SessionEditorialDraftEditor({
 	editable,
 	publishable,
 	publicationAvailable,
+	comicEnabled = false,
 	surface = "session",
 	active = true,
 	onPreview,
@@ -134,8 +139,12 @@ export function SessionEditorialDraftEditor({
 	const saveDraft = transport?.saveDraft ?? saveSessionEditorialDraftAction;
 	const publishDraft = transport?.publishDraft ?? publishSessionEditorialDraftAction;
 	const CoverEditor = transport?.CoverEditor ?? SessionCoverEditor;
+	const ComicEditor = transport?.ComicEditor ?? SessionComicEditor;
 	const [fields, setFields] = useState<Fields>(() => fieldsFromDraft(initial));
 	const [baseline, setBaseline] = useState<Fields>(() => fieldsFromDraft(initial));
+	const [comicPages, setComicPages] = useState<readonly SessionComicDraftPage[]>(initial.comicPages ?? []);
+	const [baselineComicPages, setBaselineComicPages] = useState<readonly SessionComicDraftPage[]>(initial.comicPages ?? []);
+	const [comicUploadPending, setComicUploadPending] = useState(false);
 	const [revision, setRevision] = useState(initial.revision);
 	const [draftId, setDraftId] = useState<string | null>(initial.draftId);
 	const [baseTranscriptRevisionId, setBaseTranscriptRevisionId] = useState(
@@ -173,7 +182,10 @@ export function SessionEditorialDraftEditor({
 	const publicationDialogTitleRef = useRef<HTMLElement>(null);
 	const publicationTriggerRef = useRef<HTMLButtonElement>(null);
 	const recoveryKey = `session-editor:${sessionId}:${surface}`;
-	const dirty = !sameFields(fields, baseline);
+	const dirty = !sameFields(fields, baseline) || JSON.stringify(comicPages) !== JSON.stringify(baselineComicPages);
+	const comicDraftIssues = validateSessionComicDraftPages(comicPages);
+	// Until HQ publication is supported, never silently publish only its text.
+	const comicPublicationBlocked = comicPages.length > 0;
 	const missing = useMemo(
 		() =>
 			sessionDraftReadiness({
@@ -196,6 +208,8 @@ export function SessionEditorialDraftEditor({
 		!missing.length &&
 		!transcriptChanged &&
 		!coverUploadPending &&
+		!comicUploadPending &&
+		!comicPublicationBlocked &&
 		phase !== "saving" &&
 		phase !== "conflict" &&
 		publishPhase !== "publishing";
@@ -254,8 +268,9 @@ export function SessionEditorialDraftEditor({
 			expectedRevision: revision,
 			baseTranscriptRevisionId,
 			...fields,
+			...(comicEnabled ? { comicPages } : {}),
 		};
-		const validationIssues = validateSessionEditorialDraftInput(input);
+		const validationIssues = [...validateSessionEditorialDraftInput(input), ...comicDraftIssues];
 		if (validationIssues.length) {
 			setPhase("error");
 			setMessage("Há um campo fora dos limites do contrato. Nada foi truncado nem salvo.");
@@ -306,6 +321,8 @@ export function SessionEditorialDraftEditor({
 		setBaseTranscriptRevisionId(result.draft.baseTranscriptRevisionId);
 		setCurrentTranscriptRevisionId(result.draft.currentTranscriptRevisionId);
 		const savedFields = fieldsFromDraft(result.draft);
+		setComicPages(result.draft.comicPages ?? []);
+		setBaselineComicPages(result.draft.comicPages ?? []);
 		setFields(savedFields);
 		setBaseline(savedFields);
 		setPhase("saved");
@@ -335,7 +352,11 @@ export function SessionEditorialDraftEditor({
 		setCurrentTranscriptRevisionId(remote.currentTranscriptRevisionId);
 		const remoteFields = fieldsFromDraft(remote);
 		setBaseline(remoteFields);
-		if (reconcileMode === "remote") setFields(remoteFields);
+		setBaselineComicPages(remote.comicPages ?? []);
+		if (reconcileMode === "remote") {
+			setFields(remoteFields);
+			setComicPages(remote.comicPages ?? []);
+		}
 		setRemote(null);
 		setPhase("idle");
 		setMessage(
@@ -391,6 +412,7 @@ export function SessionEditorialDraftEditor({
 		if (!intent || publishPhase === "publishing") return;
 		if (
 			coverUploadPending ||
+			comicUploadPending ||
 			dirty ||
 			draftId !== intent.draftId ||
 			revision !== intent.draftRevision ||
@@ -402,7 +424,7 @@ export function SessionEditorialDraftEditor({
 					? "A nova capa ainda está sendo enviada ou validada. Aguarde a conclusão antes de publicar."
 					: "O draft mudou depois da confirmação. Abra a confirmação novamente.",
 			);
-			if (!coverUploadPending) setPublishIntent(null);
+			if (!coverUploadPending && !comicUploadPending) setPublishIntent(null);
 			return;
 		}
 
@@ -475,9 +497,9 @@ export function SessionEditorialDraftEditor({
 			<header className={draftStyles.editorialHeader}>
 				<div>
 					<span className={styles.muted}>
-						{surface === "summary" ? "RESUMO COMPLETO" : "DADOS DA SESSÃO"}
+						{surface === "summary" ? "RESUMO COMPLETO" : surface === "comic" ? "HQ DA SESSÃO" : "DADOS DA SESSÃO"}
 					</span>
-					<h2>{surface === "summary" ? "Resumo detalhado" : "Sessão"}</h2>
+					<h2>{surface === "summary" ? "Resumo detalhado" : surface === "comic" ? "Páginas ilustradas" : "Sessão"}</h2>
 				</div>
 				<span className={styles.muted}>Draft r{revision}</span>
 			</header>
@@ -589,6 +611,14 @@ export function SessionEditorialDraftEditor({
 						</label>
 					</div>
 				</div>
+			) : surface === "comic" && comicEnabled ? (
+				<ComicEditor
+					sessionId={sessionId}
+					pages={comicPages}
+					editable={editable}
+					onChange={setComicPages}
+					onBusyChange={setComicUploadPending}
+				/>
 			) : (
 				<div className={draftStyles.summaryWorkspace}>
 					<section className={draftStyles.summaryPane} aria-label="Markdown bruto">
@@ -860,6 +890,7 @@ export function SessionEditorialDraftEditor({
 							!editable ||
 							!dirty ||
 							phase === "saving" ||
+							comicUploadPending ||
 							phase === "conflict"
 						}
 						onClick={() => void save()}
