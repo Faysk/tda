@@ -160,7 +160,16 @@ export async function prepareSessionComicForPublication(input: {
 			url = publicUrl(asset, input.sessionId, input.campaignSlug);
 		}
 		if (!url) return null;
-		result.push({ imageUrl: url, altText: page.altText, caption: page.caption });
+		const width = safeSize(asset.width);
+		const height = safeSize(asset.height);
+		if (!width || !height || width * height > 64_000_000) return null;
+		result.push({
+			imageUrl: url,
+			altText: page.altText,
+			caption: page.caption,
+			width,
+			height,
+		});
 	}
 	return result;
 }
