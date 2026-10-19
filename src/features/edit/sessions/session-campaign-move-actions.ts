@@ -16,6 +16,7 @@ import {
 	commitSessionCampaignMove,
 	prepareSessionCampaignMoveMedia,
 	preflightSessionCampaignMove,
+	sessionComicMoveBlocked,
 } from "./session-campaign-move-repository";
 
 const UUID =
@@ -81,6 +82,11 @@ async function authorizedRequest(request: Request) {
 export async function preflightSessionCampaignMoveAction(request: Request) {
 	const access = await authorizedRequest(request);
 	if (!access.ok) return access;
+	if (await sessionComicMoveBlocked({
+		sessionId: request.sessionId,
+		campaignId: access.source.id,
+		campaignSlug: access.source.technicalSlug,
+	})) return { ok: false as const, reason: "blocked" as const };
 	const result = await preflightSessionCampaignMove({
 		authUserId: access.authUserId,
 		actorProfileId: access.profileId,
@@ -145,6 +151,12 @@ export async function moveSessionCampaignAction(
 		});
 		return access;
 	}
+
+	if (await sessionComicMoveBlocked({
+		sessionId: request.sessionId,
+		campaignId: access.source.id,
+		campaignSlug: access.source.technicalSlug,
+	})) return { ok: false as const, reason: "blocked" as const };
 
 	const boundary = {
 		authUserId: access.authUserId,
