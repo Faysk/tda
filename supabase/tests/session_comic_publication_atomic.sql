@@ -93,6 +93,33 @@ begin
   select count(*) into v_before_publication_count
   from public.session_publications where session_id=v_session;
 
+  -- Invalid top-level JSON objects must fail as controlled validation errors.
+  v_rejected := false;
+  begin
+    perform 1
+    from public.save_session_editorial_draft_with_comic_atomic(
+      v_actor,'synthetic-campaign',v_session,v_expected_revision,v_transcript,
+      v_cover::text,'Arco ilustrado','Capítulo da HQ','Resumo curto válido',
+      '# História ilustrada','2026-09-01','{"unexpected":true}'::jsonb
+    );
+  exception when sqlstate '22023' then
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'HQ_OBJECT_JSON_ACCEPTED_AS_DRAFT_ARRAY'; end if;
+
+  v_rejected := false;
+  begin
+    perform 1
+    from public.publish_session_editorial_with_comic_atomic(
+      v_actor,'synthetic-campaign',v_session,
+      '99999999-9999-4999-8999-999999999999'::uuid,
+      v_current_publication,v_operation,v_cover_url,'{"unexpected":true}'::jsonb
+    );
+  exception when sqlstate '22023' then
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'HQ_OBJECT_JSON_ACCEPTED_AS_PUBLIC_ARRAY'; end if;
+
   v_bad_pages := jsonb_build_array(jsonb_build_object(
     'assetId', v_cover::text, 'altText', 'Tentativa de usar uma capa', 'caption', ''
   ));
