@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { worldEntityMediaEnabled } from "@/features/world-explorer/world-entity-media-server";
 import { authorizeSessionComicTarget } from "./session-comic-media-access";
+import { sessionComicFeatureEnabled } from "./session-comic-feature";
 import {
 	SESSION_COMIC_MEDIA_UPLOAD_CHUNK_BYTES,
 	type SessionComicMediaMime,
@@ -134,7 +135,7 @@ async function persistVerifiedAsset(input: {
 }
 
 export async function sessionComicMediaAvailabilityAction(): Promise<boolean> {
-	return worldEntityMediaEnabled();
+	return sessionComicFeatureEnabled() && worldEntityMediaEnabled();
 }
 
 export async function requestSessionComicUploadAction(
@@ -144,7 +145,7 @@ export async function requestSessionComicUploadAction(
 	| Readonly<{ ok: true; uploadId: string; chunkBytes: number }>
 	| Readonly<{ ok: false; reason: SessionComicUploadFailure }>
 > {
-	if (!worldEntityMediaEnabled())
+	if (!sessionComicFeatureEnabled() || !worldEntityMediaEnabled())
 		return { ok: false, reason: "media_unavailable" };
 	if (!isSessionComicUuid(sessionId) || !isSessionComicUploadIntent(intent))
 		return { ok: false, reason: "invalid_payload" };
@@ -175,7 +176,7 @@ export async function finalizeSessionComicUploadAction(
 	  }>
 	| Readonly<{ ok: false; reason: SessionComicUploadFailure }>
 > {
-	if (!worldEntityMediaEnabled())
+	if (!sessionComicFeatureEnabled() || !worldEntityMediaEnabled())
 		return { ok: false, reason: "media_unavailable" };
 	if (
 		!isSessionComicUuid(sessionId) ||
@@ -237,7 +238,7 @@ export async function getSessionComicAssetStatusAction(
 	  }>
 	| Readonly<{ ok: false; reason: SessionComicUploadFailure }>
 > {
-	if (!worldEntityMediaEnabled())
+	if (!sessionComicFeatureEnabled() || !worldEntityMediaEnabled())
 		return { ok: false, reason: "media_unavailable" };
 	if (!isSessionComicUuid(sessionId) || !isSessionComicUuid(assetId))
 		return { ok: false, reason: "invalid_payload" };
