@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	SESSION_COMIC_LIMITS,
 	readPublishedSessionComicPages,
+	readSessionComicDraftPages,
 	validateSessionComicDraftPages,
 } from "./session-comic-model";
 
@@ -29,6 +30,22 @@ describe("session HQ draft contract", () => {
 		expect(validateSessionComicDraftPages([])).toEqual([]);
 		expect(validateSessionComicDraftPages(draftPages)).toEqual([]);
 		expect(validateSessionComicDraftPages(draftPages, { forPublication: true })).toEqual([]);
+	});
+
+	it("rejects invalid stored drafts without silently erasing authored pages", () => {
+		expect(readSessionComicDraftPages([])).toEqual([]);
+		expect(readSessionComicDraftPages(draftPages)).toEqual(draftPages);
+		expect(readSessionComicDraftPages(null)).toBeNull();
+		expect(
+			readSessionComicDraftPages([
+				{ ...draftPages[0], transcript: "PRIVATE" },
+			]),
+		).toBeNull();
+		expect(
+			readSessionComicDraftPages([
+				{ ...draftPages[0], assetId: "not-a-uuid" },
+			]),
+		).toBeNull();
 	});
 
 	it("allows a blank alt in a draft but requires it for publication", () => {
