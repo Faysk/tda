@@ -46,6 +46,19 @@ begin
     raise exception 'HQ_RPC_EXPOSED_TO_BROWSER';
   end if;
 
+  -- Regression: #1135 campaign_cover must remain admissible after extending
+  -- the role and object-key constraints for HQ.
+  insert into public.media_assets (
+    id, campaign_id, media_kind, role_hint, status, staged_bucket,
+    object_key, sha256, mime_type, byte_size, width, height,
+    read_back_verified, created_by
+  ) values (
+    '88888888-8888-4888-8888-888888888888', v_campaign, 'image',
+    'campaign_cover', 'staged', 'tda-media-private',
+    'campaigns/synthetic-campaign/campaign/cover/' || repeat('d',64) || '.webp',
+    repeat('d',64), 'image/webp', 256, 300, 300, true, v_actor
+  );
+
   insert into public.media_assets (
     id, campaign_id, media_kind, role_hint, status, staged_bucket,
     object_key, sha256, mime_type, byte_size, width, height,
