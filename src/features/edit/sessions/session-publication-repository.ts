@@ -14,6 +14,8 @@ import {
 	sessionCoverObjectKey,
 } from "./session-cover-media";
 import { promoteSessionCover } from "./session-cover-media-server";
+import { sessionComicFeatureEnabled } from "./session-comic-feature";
+import type { SessionComicPublishedPage } from "./session-comic-model";
 import type {
 	SessionPublicationRequest,
 	SessionPublicationState,
@@ -372,11 +374,19 @@ export async function persistSessionPublication(input: {
 	campaignSlug: string;
 	request: SessionPublicationRequest;
 	publicCoverUrl: string;
+	publicComicPages: readonly SessionComicPublishedPage[] | null;
 }) {
 	const client = editDataClient();
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
 
-	const { data, error } = await client.rpc("publish_session_editorial_with_date_atomic", {
+	const comicEnabled = sessionComicFeatureEnabled();
+	if (comicEnabled && input.publicComicPages === null)
+		return { ok: false as const, reason: "comic_unverified" as const };
+	const { data, error } = await client.rpc(
+		comicEnabled
+			? "publish_session_editorial_with_comic_atomic"
+			: "publish_session_editorial_with_date_atomic",
+		{
 		p_actor_profile_id: input.actorProfileId,
 		p_campaign_slug: input.campaignSlug,
 		p_session_id: input.request.sessionId,
@@ -385,6 +395,7 @@ export async function persistSessionPublication(input: {
 			input.request.expectedCurrentPublicationId,
 		p_operation_id: input.request.operationId,
 		p_public_cover_url: input.publicCoverUrl,
+		...(comicEnabled ? { p_public_comic_pages: input.publicComicPages } : {}),
 	});
 	if (error || !Array.isArray(data) || data.length !== 1)
 		return { ok: false as const, reason: "dependency_unavailable" as const };
