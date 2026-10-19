@@ -41,6 +41,6 @@ describe("session comic SQL candidate integrity (#1765)", () => {
 		expect(sql.indexOf("and a.mime_type in ('image/png', 'image/webp')", media)).toBeGreaterThan(media);
 		expect(sql.lastIndexOf(comment)).toBeGreaterThan(end);
 		// No accidentally appended SQL fragment beyond the function ACL/comment.
-		expect(sql.trimEnd().endsWith("\';")).toBe(true);
+		expect(sql.trimEnd().endsWith(`';`)).toBe(true);
 	});
 });
