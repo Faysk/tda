@@ -32,7 +32,7 @@ describe("session comic SQL candidate integrity (#1765)", () => {
 		const comment = `comment on function public.${name}(`;
 		expect(sql.split(header)).toHaveLength(2);
 		expect(sql.split(comment)).toHaveLength(2);
-		expect(sql.match(/end;\\n\\$\\$;/gu)).toHaveLength(1);
+		expect(sql.split("end;\\n$$;")).toHaveLength(2);
 		const regexLine = "and a.sha256 ~ '^[0-9a-f]{64}$'";
 		const media = sql.indexOf(regexLine);
 		const end = sql.indexOf("end;\\n$$;");
@@ -41,6 +41,6 @@ describe("session comic SQL candidate integrity (#1765)", () => {
 		expect(sql.indexOf("and a.mime_type in ('image/png', 'image/webp')", media)).toBeGreaterThan(media);
 		expect(sql.lastIndexOf(comment)).toBeGreaterThan(end);
 		// No accidentally appended SQL fragment beyond the function ACL/comment.
-		expect(sql.trimEnd()).toMatch(/\\) is '[^'\\n]+';$/u);
+		expect(sql.trimEnd().endsWith("\';")).toBe(true);
 	});
 });
