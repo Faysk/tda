@@ -1,0 +1,162 @@
+.editor {
+	display: grid;
+	gap: 12px;
+	min-width: 0;
+}
+
+.toolbar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.toolbar > div {
+	display: grid;
+	gap: 4px;
+}
+
+.toolbar p,
+.hint {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.82rem;
+}
+
+.toolbar button,
+.controls button,
+.progress button {
+	min-height: 36px;
+	padding: 7px 12px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+	cursor: pointer;
+	font: inherit;
+}
+
+.toolbar button:disabled,
+.controls button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.hiddenInput {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+}
+
+.empty {
+	margin: 0;
+	padding: 28px 16px;
+	border: 1px dashed var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	color: var(--ds-foreground-muted);
+	text-align: center;
+}
+
+.pages {
+	display: grid;
+	gap: 10px;
+	padding: 0;
+	margin: 0;
+	list-style: none;
+}
+
+.page {
+	display: grid;
+	grid-template-columns: 112px minmax(0, 1fr) auto;
+	align-items: start;
+	gap: 12px;
+	padding: 12px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+}
+
+.thumbnail {
+	position: relative;
+	width: 112px;
+	aspect-ratio: 3 / 4;
+	overflow: hidden;
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas);
+}
+
+.thumbnail img {
+	object-fit: contain;
+}
+
+.fields {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+}
+
+.fields label {
+	display: grid;
+	gap: 4px;
+	font-size: 0.78rem;
+	color: var(--ds-foreground-muted);
+}
+
+.fields input {
+	display: block;
+	min-width: 0;
+	width: 100%;
+	padding: 8px 10px;
+	border-radius: var(--ds-radius-sm);
+	border: 1px solid var(--ds-control-border);
+	background: var(--ds-surface);
+	color: var(--ds-foreground);
+	font: inherit;
+}
+
+.controls {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	align-items: stretch;
+}
+
+.progress {
+	display: grid;
+	gap: 6px;
+	padding: 10px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+}
+
+.progress progress {
+	width: 100%;
+}
+
+.error {
+	margin: 0;
+	color: var(--ds-status-danger-text);
+}
+
+@media (max-width: 700px) {
+	.page {
+		grid-template-columns: 92px minmax(0, 1fr);
+	}
+
+	.thumbnail {
+		width: 92px;
+	}
+
+	.controls {
+		grid-column: 1 / -1;
+		flex-direction: row;
+		flex-wrap: wrap;
+	}
+
+	.toolbar button {
+		width: 100%;
+	}
+}
