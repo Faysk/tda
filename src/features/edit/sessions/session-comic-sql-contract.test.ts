@@ -1,16 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-function candidate(name: string): string {
+function migration(name: string): string {
 	return readFileSync(
-		new URL("../../../../supabase/candidates/" + name, import.meta.url),
+		new URL("../../../../supabase/migrations/" + name, import.meta.url),
 		"utf8",
 	);
 }
 
-describe("session comic SQL candidate integrity (#1765)", () => {
+describe("session comic SQL migration integrity (#1765)", () => {
 	it("retains both existing campaign covers and new HQ media keys", () => {
-		const sql = candidate("20261019153000_session_comic_media_constraints.sql");
+		const sql = migration("20261019153000_session_comic_media_constraints.sql");
 		expect(sql).toContain("'campaign_cover'");
 		expect(sql).toContain("'session_comic_page'");
 		expect(sql).toContain("campaign/cover");
@@ -27,7 +27,7 @@ describe("session comic SQL candidate integrity (#1765)", () => {
 			"publish_session_editorial_with_comic_atomic",
 		],
 	] as const)("retains exactly one complete SQL function in %s", (filename, name) => {
-		const sql = candidate(filename);
+		const sql = migration(filename);
 		const header = `create function public.${name}(`;
 		const comment = `comment on function public.${name}(`;
 		expect(sql.split(header)).toHaveLength(2);
