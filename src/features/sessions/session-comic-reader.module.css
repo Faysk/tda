@@ -14,6 +14,18 @@
 	background: var(--ds-canvas-subtle);
 }
 
+.switcherLegend {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
 .switcher button {
 	min-width: 92px;
 	min-height: 40px;
