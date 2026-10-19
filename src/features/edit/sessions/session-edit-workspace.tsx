@@ -50,6 +50,7 @@ const EDITORIAL_TABS: ReadonlyArray<
 > = [
 	{ id: "session", label: "Sessão" },
 	{ id: "summary", label: "Resumo / Preview" },
+	{ id: "comic", label: "HQ" },
 ];
 
 export function SessionEditWorkspace({
