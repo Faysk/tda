@@ -28,11 +28,11 @@ A gestão editorial pertence ao **mesmo workspace privado** de `/edit/sessoes/[i
 
 ## Infraestrutura preparada na PR draft — não ativada
 
-O transporte privado de HQ e o componente de organização visual já existem **somente na PR draft**, ainda não ligados ao editor de sessões. Foram adicionados `session-comic-media*.ts`, `session-comic-editor.tsx`, os endpoints privados e os respetivos testes de contrato.
+A PR draft contém um fluxo completo de código **atrás da flag server-side `TDA_SESSION_COMICS_ENABLED`, desligada por defeito**. A aba **HQ** fica junto de **Resumo / Preview** quando a flag for explicitamente ativada, reutilizando o save editorial em draft versionado. O upload R2 tem namespace/role próprios, autorização de campanha/sessão e preview privado. A publicação usa promoção de objetos, validação SQL do vínculo asset→session/campaign e snapshot de páginas imutável; o leitor da página pública oferece **Texto | HQ** somente se o snapshot ativo tiver HQ.
 
-Os SQL `supabase/candidates/20261019153000_session_comic_media_constraints.sql` e `supabase/candidates/20261019163000_session_comic_editorial_draft.sql` continuam **candidatos não aplicados**, requerendo revisão e prova num PostgreSQL descartável. Os RPCs ativos de save e publish do resumo permanecem inalterados, para não introduzir alterações incompatíveis antes da publicação de HQ estar pronta.
+Os SQL `supabase/candidates/20261019153000_session_comic_media_constraints.sql`, `supabase/candidates/20261019163000_session_comic_editorial_draft.sql` e `supabase/candidates/20261019173000_session_comic_publication.sql` continuam **candidatos não aplicados**. A base ativa permanece nos RPCs antigos enquanto a flag estiver desligada. A ativação requer testes PostgreSQL, rollout coordenado de schema e código, autorização explícita, E2E e verificação da compatibilidade com campanhas existentes.
 
-As secções seguintes são pendências para ativação segura, não funcionalidades atualmente acessíveis na plataforma.
+As secções seguintes registam critérios e cuidados ainda sujeitos a validação de integração, não funcionalidades atualmente acessíveis em produção.
 
 ## Implementação seguinte (não concluída)
 
