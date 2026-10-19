@@ -73,7 +73,8 @@ begin
     'assetId', v_asset::text, 'altText', 'Duas esferas no céu', 'caption', ''
   ));
   v_public_pages := jsonb_build_array(jsonb_build_object(
-    'imageUrl', v_page_url, 'altText', 'Duas esferas no céu', 'caption', ''
+    'imageUrl', v_page_url, 'altText', 'Duas esferas no céu',
+    'caption', '', 'width', 900, 'height', 1300
   ));
 
   select coalesce(d.revision, 0)
@@ -169,7 +170,8 @@ begin
   v_bad_pages := jsonb_build_array(jsonb_build_object(
     'imageUrl','https://media.dnd.faysk.dev/campaigns/other/sessions/'
       || v_session || '/comic/' || repeat('b',64) || '.webp',
-    'altText','Duas esferas no céu','caption',''
+    'altText','Duas esferas no céu','caption','',
+    'width',900,'height',1300
   ));
   select p.status into v_status
   from public.publish_session_editorial_with_comic_atomic(
