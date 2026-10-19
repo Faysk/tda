@@ -5,6 +5,7 @@ import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { readSessionEditorialDraft } from "./editorial-draft-repository";
 import { resolveEditSessionCampaign } from "./repository";
+import { sessionComicFeatureEnabled } from "./session-comic-feature";
 import { sessionDraftReadiness } from "./editorial-draft-model";
 import {
 	type SessionPublicationRequest,
@@ -129,6 +130,9 @@ export async function publishSessionEditorialDraftAction(
 		}
 		if (draft.transcriptChanged)
 			return { ok: false as const, reason: "transcript_changed" as const };
+		// Never silently publish only the Markdown when an HQ draft is present.
+		if (sessionComicFeatureEnabled() && (draft.comicPages?.length ?? 0) > 0)
+			return { ok: false as const, reason: "comic_not_ready" as const };
 
 		const missing = sessionDraftReadiness(draft);
 		if (missing.length)
