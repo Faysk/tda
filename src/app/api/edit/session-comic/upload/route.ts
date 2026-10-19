@@ -1,5 +1,6 @@
 import { worldEntityMediaEnabled } from "@/features/world-explorer/world-entity-media-server";
 import { authorizeSessionComicTarget } from "@/features/edit/sessions/session-comic-media-access";
+import { sessionComicFeatureEnabled } from "@/features/edit/sessions/session-comic-feature";
 import {
 	SESSION_COMIC_MEDIA_UPLOAD_CHUNK_BYTES,
 	isSessionComicSha256,
@@ -25,7 +26,7 @@ function header(request: Request, name: string): string {
 }
 
 export async function PUT(request: Request) {
-	if (!worldEntityMediaEnabled())
+	if (!sessionComicFeatureEnabled() || !worldEntityMediaEnabled())
 		return new Response("Session media unavailable", { status: 503 });
 
 	const url = new URL(request.url);
