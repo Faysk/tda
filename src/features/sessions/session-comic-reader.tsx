@@ -19,7 +19,8 @@ export function SessionComicReader({ pages, textView }: Props) {
 
 	return (
 		<section className={styles.reader} aria-label="Leitura da sessão">
-			<div className={styles.switcher} role="group" aria-label="Modo de leitura">
+			<fieldset className={styles.switcher}>
+				<legend className={styles.switcherLegend}>Modo de leitura</legend>
 				<button
 					type="button"
 					aria-pressed={mode === "text"}
@@ -36,12 +37,12 @@ export function SessionComicReader({ pages, textView }: Props) {
 				>
 					HQ
 				</button>
-			</div>
+			</fieldset>
 			<div id={sectionId}>
 				{mode === "text" ? (
 					textView
 				) : (
-					<div className={styles.comic} aria-label="Páginas ilustradas da sessão">
+					<section className={styles.comic} aria-label="Páginas ilustradas da sessão">
 						<p className={styles.pageCount}>
 							{pages.length} {pages.length === 1 ? "página" : "páginas"} de HQ
 						</p>
@@ -63,7 +64,7 @@ export function SessionComicReader({ pages, textView }: Props) {
 								</li>
 							))}
 						</ol>
-					</div>
+					</section>
 				)}
 			</div>
 		</section>
