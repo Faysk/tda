@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { inspectWorldEntityImage } from "@/features/world-explorer/world-entity-media-image";
 import {
 	isSessionComicUploadIntent,
 	SESSION_COMIC_MEDIA_ROLE,
@@ -75,6 +77,48 @@ describe("comic media identity", () => {
 			"/api/edit/session-comic/" + sessionId + "/" + assetId,
 		);
 		expect(sessionComicPreviewUrl(sessionId, "unknown")).toBeUndefined();
+	});
+
+	it("recognizes synthetic portrait PNG and landscape WebP from their bytes", () => {
+		const png = Buffer.alloc(24);
+		Buffer.from("89504e470d0a1a0a", "hex").copy(png, 0);
+		png.writeUInt32BE(13, 8);
+		png.write("IHDR", 12, "ascii");
+		png.writeUInt32BE(800, 16);
+		png.writeUInt32BE(1200, 20);
+
+		const webp = Buffer.alloc(30);
+		webp.write("RIFF", 0, "ascii");
+		webp.writeUInt32LE(22, 4);
+		webp.write("WEBP", 8, "ascii");
+		webp.write("VP8X", 12, "ascii");
+		webp.writeUInt32LE(10, 16);
+		const w = 1600 - 1, h = 900 - 1;
+		for (let i = 0; i < 3; i += 1) {
+			webp[24 + i] = (w >>> (i * 8)) & 0xff;
+			webp[27 + i] = (h >>> (i * 8)) & 0xff;
+		}
+		for (const [bytes, mimeType, width, height, extension] of [
+			[png, "image/png", 800, 1200, "png"],
+			[webp, "image/webp", 1600, 900, "webp"],
+		] as const) {
+			const info = inspectWorldEntityImage(bytes);
+			expect(info).toMatchObject({ mimeType, width, height, extension });
+			const sha256 = createHash("sha256").update(bytes).digest("hex");
+			expect(info.sha256).toBe(sha256);
+			expect(isSessionComicUploadIntent({ sha256, mimeType, bytes: bytes.length })).toBe(true);
+			expect(
+				sessionComicObjectKey({
+					campaignSlug: "yuhara-main",
+					sessionId,
+					sha256,
+					extension,
+				}),
+			).toBe(
+				"campaigns/yuhara-main/sessions/" + sessionId +
+					"/comic/" + sha256 + "." + extension,
+			);
+		}
 	});
 
 	it("accepts only bounded PNG/WebP upload declarations", () => {
