@@ -114,3 +114,9 @@ export function sessionComicPreviewUrl(
 		encodeURIComponent(assetId.toLowerCase())
 	);
 }
+
+/** Local aliases keep the HQ transport independent of the cover public API. */
+export const isSessionComicUuid = isSessionCoverUuid;
+export const isSessionComicSha256 = isSessionCoverSha256;
+export const isSessionComicMime = isSessionCoverMime;
+export const sessionComicUploadChunkCount = sessionCoverUploadChunkCount;
