@@ -14,6 +14,7 @@ import { readSessionEditorialDraft } from "@/features/edit/sessions/editorial-dr
 import { readSessionPublicationContext } from "@/features/edit/sessions/session-publication-repository";
 import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import { SessionEditWorkspace } from "@/features/edit/sessions/session-edit-workspace";
+import { sessionComicFeatureEnabled } from "@/features/edit/sessions/session-comic-feature";
 import { SessionCampaignMovePanel } from "@/features/edit/sessions/session-campaign-move";
 import {
 	readRecentSessionCampaignMoveDestination,
@@ -244,6 +245,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 					draft
 						? {
 								editable: canEdit,
+								comicEnabled: sessionComicFeatureEnabled(),
 								initial: draft,
 								initialPublication: {
 									currentPublicationId:
