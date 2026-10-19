@@ -52,8 +52,8 @@ export function SessionComicReader({ pages, textView }: Props) {
 										<Image
 											src={page.imageUrl}
 											alt={page.altText}
-											width={1000}
-											height={1400}
+											width={page.width}
+											height={page.height}
 											sizes="(max-width: 900px) 100vw, 900px"
 											loading={index === 0 ? "eager" : "lazy"}
 											style={{ width: "100%", height: "auto" }}
