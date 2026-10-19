@@ -2012,5 +2012,6 @@ Ambos os arquivos abaixo estão exclusivamente em `supabase/candidates/`, não e
 
 - `20261019153000_session_comic_media_constraints.sql` — candidato #1765 para adicionar papel/namespace de imagem HQ à governança de mídia; **não aplicado**, requer teste scratch e revisão de constraints.
 - `20261019163000_session_comic_editorial_draft.sql` — candidato #1765 para persistir páginas HQ em drafts editoriais via RPC CAS validada; **não aplicado**, depende do candidato anterior e de publicação versionada posterior.
+- `20261019173000_session_comic_publication.sql` — candidato #1765 para snapshot público ordenado da HQ, validação SQL das imagens e binding atómico à operação editorial; **não aplicado**, depende dos dois candidatos de HQ anteriores.
 
 A promoção exige validação local do PostgreSQL, integração com snapshot público e autorização da equipa. A interface editorial ativa continua usando os RPCs atuais até o fluxo completo ser aprovado.
