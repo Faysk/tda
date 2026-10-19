@@ -2,6 +2,7 @@ import "server-only";
 
 import { editDataClient } from "@/integrations/supabase/server";
 import type { SessionEditorialDraft, SessionEditorialDraftInput } from "./editorial-draft-model";
+import { readSessionComicDraftPages } from "./session-comic-model";
 
 type SessionRow = Readonly<{
 	id: unknown;
@@ -25,6 +26,7 @@ type DraftRow = Readonly<{
 	title: unknown;
 	summary_short: unknown;
 	summary_full: unknown;
+	comic_pages: unknown;
 	session_date: unknown;
 	session_date_captured: unknown;
 	created_at: unknown;
@@ -75,6 +77,7 @@ export async function readSessionEditorialDraft(
 			title: text(session.title),
 			shortDescription: text(session.summary_short),
 			fullSummary: text(session.summary_full),
+			comicPages: [],
 			updatedAt: null,
 			sessionStatus: text(session.status) || "unknown",
 			sessionDate: text(session.session_date) || null,
@@ -85,7 +88,7 @@ export async function readSessionEditorialDraft(
 	const { data: draftRaw, error: draftError } = await client
 		.from("session_editorial_drafts")
 		.select(
-			"id,revision,base_transcript_revision_id,cover_asset_id,arc,title,summary_short,summary_full,session_date,session_date_captured,created_at",
+			"id,revision,base_transcript_revision_id,cover_asset_id,arc,title,summary_short,summary_full,comic_pages,session_date,session_date_captured,created_at",
 		)
 		.eq("id", draftId)
 		.eq("session_id", sessionId)
@@ -117,6 +120,7 @@ export async function readSessionEditorialDraft(
 		title: text(draft.title),
 		shortDescription: text(draft.summary_short),
 		fullSummary: text(draft.summary_full),
+		comicPages: readSessionComicDraftPages(draft.comic_pages) ?? [],
 		updatedAt,
 		sessionStatus: text(session.status) || "unknown",
 		sessionDate:
@@ -135,7 +139,7 @@ export async function persistSessionEditorialDraft(
 	const client = editDataClient();
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
 
-	const { data, error } = await client.rpc("save_session_editorial_draft_with_date_atomic", {
+	const { data, error } = await client.rpc("save_session_editorial_draft_with_comic_atomic", {
 		p_actor_profile_id: actorProfileId,
 		p_campaign_slug: campaignSlug,
 		p_session_id: input.sessionId,
@@ -147,6 +151,7 @@ export async function persistSessionEditorialDraft(
 		p_summary_short: input.shortDescription,
 		p_summary_full: input.fullSummary,
 		p_session_date: input.sessionDate || null,
+		p_comic_pages: input.comicPages ?? [],
 	});
 	if (error || !Array.isArray(data) || data.length !== 1)
 		return { ok: false as const, reason: "dependency_unavailable" as const };
