@@ -1,6 +1,8 @@
 # HQ nas sessões — contrato e implementação faseada (#1765)
 
-> Status: **em desenvolvimento**. Este documento descreve a direção aprovada e o que ainda falta implementar; nenhum upload, publicação ou leitor de HQ deve ser anunciado como funcional antes dos respetivos gates.
+> Status: candidato em desenvolvimento; sem publicação
+> Owner: sessions / edit
+> Última revisão: 2026-10-19
 >
 > Referências: #787, #791, #792, #793, #1086, #1125, #1345, #1765.
 
