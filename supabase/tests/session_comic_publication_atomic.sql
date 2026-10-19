@@ -23,6 +23,9 @@ declare
   v_public_pages jsonb;
   v_bad_pages jsonb;
   v_expected_revision bigint;
+  v_current_publication uuid;
+  v_expected_version bigint;
+  v_before_publication_count bigint;
   v_draft_id uuid;
   v_pub_id uuid;
   v_prev uuid;
@@ -67,6 +70,14 @@ begin
   where s.id=v_session;
 
   if v_expected_revision is null then v_expected_revision := 0; end if;
+  select s.current_session_publication_id
+  into v_current_publication
+  from public.sessions s where s.id=v_session;
+  select coalesce(max(sp.version), 0) + 1
+  into v_expected_version
+  from public.session_publications sp where sp.session_id=v_session;
+  select count(*) into v_before_publication_count
+  from public.session_publications where session_id=v_session;
 
   v_bad_pages := jsonb_build_array(jsonb_build_object(
     'assetId', v_cover::text, 'altText', 'Tentativa de usar uma capa', 'caption', ''
@@ -102,7 +113,7 @@ begin
   select p.status
   into v_status
   from public.publish_session_editorial_with_comic_atomic(
-    v_actor,'synthetic-campaign',v_session,v_draft_id,null,v_operation,
+    v_actor,'synthetic-campaign',v_session,v_draft_id,v_current_publication,v_operation,
     v_cover_url,v_public_pages
   ) p;
   if v_status <> 'comic_unverified'
@@ -125,7 +136,7 @@ begin
   ));
   select p.status into v_status
   from public.publish_session_editorial_with_comic_atomic(
-    v_actor,'synthetic-campaign',v_session,v_draft_id,null,v_operation,
+    v_actor,'synthetic-campaign',v_session,v_draft_id,v_current_publication,v_operation,
     v_cover_url,v_bad_pages
   ) p;
   if v_status <> 'comic_unverified' then
@@ -135,12 +146,12 @@ begin
   select p.status,p.publication_id,p.version,p.previous_publication_id,p.payload_sha256
   into v_status,v_pub_id,v_version,v_prev,v_hash
   from public.publish_session_editorial_with_comic_atomic(
-    v_actor,'synthetic-campaign',v_session,v_draft_id,null,v_operation,
+    v_actor,'synthetic-campaign',v_session,v_draft_id,v_current_publication,v_operation,
     v_cover_url,v_public_pages
   ) p;
 
-  if v_status <> 'published' or v_pub_id is null or v_version <> 1
-     or v_prev is not null
+  if v_status <> 'published' or v_pub_id is null or v_version <> v_expected_version
+     or v_prev is distinct from v_current_publication
      or (select s.current_session_publication_id from public.sessions s
          where s.id=v_session) <> v_pub_id
      or not exists(
@@ -154,11 +165,11 @@ begin
   select p.status,p.publication_id,p.payload_sha256
   into v_status,v_prev,v_hash
   from public.publish_session_editorial_with_comic_atomic(
-    v_actor,'synthetic-campaign',v_session,v_draft_id,null,v_operation,
+    v_actor,'synthetic-campaign',v_session,v_draft_id,v_current_publication,v_operation,
     v_cover_url,v_public_pages
   ) p;
   if v_status <> 'replay' or v_prev <> v_pub_id
-     or (select count(*) from public.session_publications where session_id=v_session) <> 1 then
+     or (select count(*) from public.session_publications where session_id=v_session) <> v_before_publication_count + 1 then
     raise exception 'HQ_PUBLICATION_IDEMPOTENCY_BROKEN:%',v_status;
   end if;
 
