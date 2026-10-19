@@ -45,8 +45,10 @@ declare
   v_caption text;
 begin
   if p_comic_pages is null or
-     jsonb_typeof(p_comic_pages) <> 'array' or
-     jsonb_array_length(p_comic_pages) > 150 then
+     case when jsonb_typeof(p_comic_pages) = 'array'
+       then jsonb_array_length(p_comic_pages) > 150
+       else true
+     end then
     raise exception 'invalid HQ page collection' using errcode = '22023';
   end if;
 
