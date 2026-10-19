@@ -259,7 +259,7 @@ export function SessionEditorialDraftEditor({
 	}, [dirty]);
 
 	async function save() {
-		if (!editable || !dirty || phase === "saving") return;
+		if (!editable || !dirty || phase === "saving" || comicUploadPending) return;
 		setPhase("saving");
 		setMessage(null);
 		setRemote(null);
@@ -384,6 +384,8 @@ export function SessionEditorialDraftEditor({
 								? "A transcrição mudou. Revise e salve um novo draft antes de publicar."
 								: missing.length
 									? "Complete os campos editoriais obrigatórios antes de publicar."
+									: comicPublicationBlocked
+									? "Esta versão possui páginas de HQ. A publicação de HQ ainda não foi ativada."
 									: "O draft ainda não está pronto para publicação.",
 			);
 			return;
@@ -455,6 +457,8 @@ export function SessionEditorialDraftEditor({
 							? "A transcrição mudou desde a base do draft. Revise e salve antes de publicar."
 							: result.reason === "not_ready"
 								? "O draft não passou pela validação autoritativa de publicação."
+							: result.reason === "comic_not_ready"
+								? "A publicação de HQ ainda não está preparada neste ambiente."
 								: result.reason === "cover_unverified"
 									? "A capa não pôde ser promovida e verificada publicamente. A versão anterior continua ativa."
 									: result.reason === "operation_conflict"
