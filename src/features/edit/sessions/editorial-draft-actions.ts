@@ -20,7 +20,6 @@ import {
 	readSessionEditorialDraft,
 } from "./editorial-draft-repository";
 import { resolveEditSessionCampaign } from "./repository";
-import { validateSessionComicDraftPages } from "./session-comic-model";
 
 const UUID =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -38,10 +37,7 @@ export async function saveSessionEditorialDraftAction(
 			issues: ["identity"] as const,
 		};
 	}
-	const issues = [
-		...validateSessionEditorialDraftInput(input),
-		...validateSessionComicDraftPages(input.comicPages ?? []),
-	];
+	const issues = [...validateSessionEditorialDraftInput(input)];
 	const coverReference = input.coverAssetId.trim();
 	if (issues.length) {
 		return { ok: false as const, reason: "validation" as const, issues };
