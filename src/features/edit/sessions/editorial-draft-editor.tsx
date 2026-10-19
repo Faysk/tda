@@ -67,6 +67,7 @@ type PublishIntent = Readonly<{
 	baseTranscriptRevisionId: string;
 	expectedCurrentPublicationId: string | null;
 	fields: Fields;
+	comicPageCount: number;
 }>;
 
 function fieldsFromDraft(draft: SessionEditorialDraft): Fields {
@@ -419,6 +420,7 @@ export function SessionEditorialDraftEditor({
 			baseTranscriptRevisionId,
 			expectedCurrentPublicationId: currentPublicationId,
 			fields: { ...fields },
+			comicPageCount: comicEnabled ? comicPages.length : 0,
 		});
 	}
 
@@ -789,6 +791,14 @@ export function SessionEditorialDraftEditor({
 								</dd>
 							</div>
 							<div>
+								<dt>HQ</dt>
+								<dd>
+									{publishIntent.comicPageCount === 0
+										? "sem páginas ilustradas"
+										: `${publishIntent.comicPageCount} ${publishIntent.comicPageCount === 1 ? "página ilustrada" : "páginas ilustradas"} · Texto e HQ`}
+								</dd>
+							</div>
+							<div>
 								<dt>Versão pública atual</dt>
 								<dd>
 									{currentPublicationId
@@ -804,8 +814,9 @@ export function SessionEditorialDraftEditor({
 							</div>
 						</dl>
 						<p className={styles.muted}>
-							A transcrição completa continuará privada. Somente capa, arco, título,
-							descrição curta e resumo completo serão promovidos.
+							A transcrição completa continuará privada. Serão publicados a capa, o
+							arco, o título, a data e os resumos. Se houver HQ, também serão
+							publicadas as páginas ilustradas verificadas, por ordem.
 						</p>
 						{coverUploadPending ? (
 							<p role="alert">
