@@ -102,8 +102,62 @@ begin
       and a.role_hint = 'session_comic_page'
       and a.status in ('staged', 'verified_public')
       and a.read_back_verified = true
-      and a.object_key like v_expected_prefix || '%'
-      and a.object_key ~ '/comic/[0-9a-f]{64}[.](png|webp)$';
+      and a.sha256 ~ '^[0-9a-f]{64}
+
+    if not found then
+      raise exception 'HQ asset is not verified for this session' using errcode = '22023';
+    end if;
+  end loop;
+
+  select result.status, result.draft_id, result.revision
+  into v_status, v_draft_id, v_revision
+  from public.save_session_editorial_draft_with_date_atomic(
+    p_actor_profile_id,
+    p_campaign_slug,
+    p_session_id,
+    p_expected_revision,
+    p_base_transcript_revision_id,
+    p_cover_asset_id,
+    p_arc,
+    p_title,
+    p_summary_short,
+    p_summary_full,
+    p_session_date
+  ) result;
+
+  if v_status = 'updated' and v_draft_id is not null then
+    update public.session_editorial_drafts d
+    set comic_pages = p_comic_pages
+    where d.id = v_draft_id
+      and d.campaign_id = v_campaign_id
+      and d.session_id = p_session_id;
+    if not found then
+      raise exception 'HQ draft snapshot missing after save';
+    end if;
+  end if;
+
+  return query select v_status, v_draft_id, v_revision;
+end;
+$$;
+
+revoke all on function public.save_session_editorial_draft_with_comic_atomic(
+  uuid, text, uuid, bigint, uuid, text, text, text, text, text, text, jsonb
+) from public;
+revoke execute on function public.save_session_editorial_draft_with_comic_atomic(
+  uuid, text, uuid, bigint, uuid, text, text, text, text, text, text, jsonb
+) from anon, authenticated;
+grant execute on function public.save_session_editorial_draft_with_comic_atomic(
+  uuid, text, uuid, bigint, uuid, text, text, text, text, text, text, jsonb
+) to service_role;
+
+comment on function public.save_session_editorial_draft_with_comic_atomic(
+  uuid, text, uuid, bigint, uuid, text, text, text, text, text, text, jsonb
+) is 'Server-only HQ draft wrapper: CAS saves immutable editorial draft metadata with individually validated campaign/session-scoped R2 asset references.';
+
+      and a.mime_type in ('image/png', 'image/webp')
+      and a.byte_size > 0 and a.width > 0 and a.height > 0
+      and a.object_key = v_expected_prefix || a.sha256 ||
+        case when a.mime_type = 'image/png' then '.png' else '.webp' end;
 
     if not found then
       raise exception 'HQ asset is not verified for this session' using errcode = '22023';
