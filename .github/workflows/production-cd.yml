@@ -54,6 +54,7 @@ jobs:
       TDA_LEMBRA_ENABLED: "true"
       TDA_WORLD_ENTITY_MEDIA_ENABLED: "true"
       TDA_TRANSCRIPT_PUBLICATION_ENABLED: "true"
+      TDA_SESSION_COMICS_ENABLED: "true"
       REQUESTED_SHA: ${{ inputs.source_sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -365,6 +366,7 @@ jobs:
           TDA_LEMBRA_ENABLED: "true"
           TDA_WORLD_ENTITY_MEDIA_ENABLED: "true"
           TDA_TRANSCRIPT_PUBLICATION_ENABLED: "true"
+          TDA_SESSION_COMICS_ENABLED: "true"
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Start staged Production artifact without domain traffic
@@ -382,6 +384,7 @@ jobs:
             --env TDA_LEMBRA_ENABLED=true \
             --env TDA_WORLD_ENTITY_MEDIA_ENABLED=true \
             --env TDA_TRANSCRIPT_PUBLICATION_ENABLED=true \
+            --env TDA_SESSION_COMICS_ENABLED=true \
             --env R2_ACCOUNT_ID="$R2_ACCOUNT_ID" \
             --env R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
             --env R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
