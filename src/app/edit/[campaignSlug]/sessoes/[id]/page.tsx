@@ -15,6 +15,8 @@ import { readSessionPublicationContext } from "@/features/edit/sessions/session-
 import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import { SessionEditWorkspace } from "@/features/edit/sessions/session-edit-workspace";
 import { sessionComicFeatureEnabled } from "@/features/edit/sessions/session-comic-feature";
+import { readIndependentSessionComicDraft } from "@/features/edit/sessions/session-comic-draft-repository";
+import { readIndependentComicPublicationState } from "@/features/edit/sessions/session-comic-independent-publication-repository";
 import { SessionCampaignMovePanel } from "@/features/edit/sessions/session-campaign-move";
 import {
 	readRecentSessionCampaignMoveDestination,
@@ -170,6 +172,39 @@ export default async function EditSessionPage({ params }: PageProps) {
 		}
 	}
 
+	// Independent HQ is available to published summaries even for legacy transcripts.
+	// Database errors fail closed without interfering with transcript/summary editing.
+	let independentComic: {
+		sessionId: string; editorialPublicationId: string;
+		initialRevision: number; initialPages: readonly import("@/features/edit/sessions/session-comic-model").SessionComicDraftPage[];
+		initialComicPublicationId: string | null; initialPublishedDraftRevision: number;
+		editable: boolean; publishable: boolean;
+	} | null = null;
+	if (sessionComicFeatureEnabled() && campaign.lifecycle === "active" && (canEdit || canPublish)) {
+		try {
+			const comicPublication = publication ??
+				await readSessionPublicationContext(session.id, campaignSlug);
+			if (comicPublication?.currentPublicationId && comicPublication.currentVersion > 0) {
+				const [hqDraft, hqPublished] = await Promise.all([
+					readIndependentSessionComicDraft(session.id, campaign.id),
+					readIndependentComicPublicationState(session.id, campaign.id),
+				]);
+				if (hqDraft) independentComic = {
+					sessionId: session.id,
+					editorialPublicationId: comicPublication.currentPublicationId,
+					initialRevision: hqDraft.revision,
+					initialPages: hqDraft.pages,
+					initialComicPublicationId: hqPublished.publicationId,
+					initialPublishedDraftRevision: hqPublished.draftRevision,
+					editable: canEdit,
+					publishable: canPublish,
+				};
+			}
+		} catch {
+			console.error("[edit] independent HQ workspace unavailable");
+		}
+	}
+
 	const sourceLabel =
 		snapshot.source === "current_revision"
 			? `Revisão privada atual · r${snapshot.revisionNumber ?? "?"}`
@@ -229,6 +264,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 
 			<div className={styles.sessionWorkspace}>
 				<SessionEditWorkspace
+				independentComic={independentComic}
 				transcript={{
 					downloadHref,
 					editable:
