@@ -93,7 +93,8 @@ begin
     if v_op.session_id <> p_session_id or v_op.campaign_id <> v_campaign_id
       or v_op.actor_profile_id <> p_actor_profile_id
       or v_op.expected_previous_id is distinct from p_expected_previous_comic_id
-      or v_op.expected_draft_revision <> p_expected_draft_revision then
+      or v_op.expected_draft_revision <> p_expected_draft_revision
+      or p_expected_editorial_publication_id is null then
       return query select 'operation_conflict'::text, null::uuid, null::bigint;
       return;
     end if;
