@@ -46,7 +46,7 @@ export function IndependentSessionComicEditor({
       setPages(result.draft.pages);
       setSavedPages(result.draft.pages);
       setMessage("Rascunho de HQ guardado. O resumo publicado não foi alterado.");
-    } finally { setBusy(false); }
+    } catch { setError("Falha de comunicação ao guardar a HQ. Tente novamente."); } finally { setBusy(false); }
   }
 
   async function publish() {
@@ -62,7 +62,7 @@ export function IndependentSessionComicEditor({
       setComicPublicationId(result.receipt.publicationId);
       setPublishedRevision(revision);
       setMessage("HQ publicada na versão " + result.receipt.version + ". O resumo permaneceu intacto.");
-    } finally { setBusy(false); }
+    } catch { setError("Falha de comunicação ao publicar a HQ. Atualize a sessão antes de tentar novamente."); } finally { setBusy(false); }
   }
 
   return (
