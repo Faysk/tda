@@ -43,4 +43,29 @@ describe("session comic SQL migration integrity (#1765)", () => {
 		// No accidentally appended SQL fragment beyond the function ACL/comment.
 		expect(sql.trimEnd().endsWith(`';`)).toBe(true);
 	});
+	it("saves independent HQ drafts without touching editorial publication", () => {
+		const sql = migration("20261020230000_session_comic_independent_draft.sql");
+		expect(sql).toContain("create table public.session_comic_drafts");
+		expect(sql).toContain("create function public.save_session_comic_draft_atomic(");
+		expect(sql).toContain("summary_not_published");
+		expect(sql).toContain("current_session_publication_id");
+		expect(sql).toContain("for update of s");
+		expect(sql).not.toMatch(/update\\s+public\\.sessions\\s+set/iu);
+		expect(sql).not.toMatch(/update\\s+public\\.session_publications\\s+set/iu);
+	});
+
+	it("publishes immutable HQ snapshots with strict idempotency and no editorial writes", () => {
+		const sql = migration("20261020231000_session_comic_independent_publication.sql");
+		expect(sql).toContain("create table public.session_comic_publications");
+		expect(sql).toContain("create function public.publish_session_comic_atomic(");
+		expect(sql).toContain("cp.editorial_publication_id = p_expected_editorial_publication_id");
+		expect(sql).toContain("cp.pages = p_public_pages");
+		expect(sql).toContain("operation_conflict");
+		expect(sql).toContain("stale_current");
+		expect(sql).toContain("for update of s");
+		expect(sql).not.toMatch(/update\\s+public\\.sessions\\s+set/iu);
+		expect(sql).not.toMatch(/update\\s+public\\.session_publications\\s+set/iu);
+		expect(sql).not.toContain("publish_session_editorial_with_date_atomic(");
+	});
+
 });
