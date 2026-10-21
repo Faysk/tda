@@ -97,8 +97,19 @@ begin
       return query select 'operation_conflict'::text, null::uuid, null::bigint;
       return;
     end if;
+    -- A reused operation ID must not acknowledge a different payload or
+    -- editorial parent. A lost-response retry remains valid if unchanged.
     select cp.version into v_version from public.session_comic_publications cp
-    where cp.id = v_op.publication_id and cp.session_id = p_session_id;
+    where cp.id = v_op.publication_id
+      and cp.session_id = p_session_id
+      and cp.campaign_id = v_campaign_id
+      and cp.editorial_publication_id = p_expected_editorial_publication_id
+      and cp.draft_revision = p_expected_draft_revision
+      and cp.pages = p_public_pages;
+    if not found then
+      return query select 'operation_conflict'::text, null::uuid, null::bigint;
+      return;
+    end if;
     return query select 'replay'::text, v_op.publication_id, v_version;
     return;
   end if;
