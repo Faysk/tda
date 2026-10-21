@@ -50,8 +50,8 @@ describe("session comic SQL migration integrity (#1765)", () => {
 		expect(sql).toContain("summary_not_published");
 		expect(sql).toContain("current_session_publication_id");
 		expect(sql).toContain("for update of s");
-		expect(sql).not.toMatch(/update\\s+public\\.sessions\\s+set/iu);
-		expect(sql).not.toMatch(/update\\s+public\\.session_publications\\s+set/iu);
+		expect(sql).not.toMatch(/update\s+public\.sessions\s+set/iu);
+		expect(sql).not.toMatch(/update\s+public\.session_publications\s+set/iu);
 	});
 
 	it("publishes immutable HQ snapshots with strict idempotency and no editorial writes", () => {
@@ -63,8 +63,8 @@ describe("session comic SQL migration integrity (#1765)", () => {
 		expect(sql).toContain("operation_conflict");
 		expect(sql).toContain("stale_current");
 		expect(sql).toContain("for update of s");
-		expect(sql).not.toMatch(/update\\s+public\\.sessions\\s+set/iu);
-		expect(sql).not.toMatch(/update\\s+public\\.session_publications\\s+set/iu);
+		expect(sql).not.toMatch(/update\s+public\.sessions\s+set/iu);
+		expect(sql).not.toMatch(/update\s+public\.session_publications\s+set/iu);
 		expect(sql).not.toContain("publish_session_editorial_with_date_atomic(");
 	});
 
