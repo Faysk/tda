@@ -5,6 +5,7 @@ import { useState } from "react";
 import { LegacyTranscriptPrepare } from "@/features/edit/transcript/legacy-transcript-prepare";
 import { TranscriptReader } from "@/features/edit/transcript/reader";
 import { SessionEditorialDraftEditor } from "./editorial-draft-editor";
+import { IndependentSessionComicEditor } from "./session-comic-independent-editor";
 import styles from "./session-edit-workspace.module.css";
 
 type WorkspaceTab = "transcript" | "session" | "summary" | "comic";
@@ -17,6 +18,8 @@ type EditorialProps = Omit<
 	ComponentProps<typeof SessionEditorialDraftEditor>,
 	"surface" | "active" | "onPreview"
 >;
+
+type IndependentComicProps = ComponentProps<typeof IndependentSessionComicEditor>;
 
 type EditorialUnavailable = Readonly<{
 	title: string;
@@ -34,6 +37,7 @@ type LegacyPreparationProps = Readonly<{
 type Props = Readonly<{
 	transcript: TranscriptProps;
 	editorial: EditorialProps | null;
+	independentComic?: IndependentComicProps | null;
 	editorialUnavailable: EditorialUnavailable | null;
 	legacyPreparation?: LegacyPreparationProps | null;
 }>;
@@ -56,15 +60,17 @@ const EDITORIAL_TABS: ReadonlyArray<
 export function SessionEditWorkspace({
 	transcript,
 	editorial,
+	independentComic = null,
 	editorialUnavailable,
 	legacyPreparation = null,
 }: Props) {
 	const [activeTab, setActiveTab] = useState<WorkspaceTab>("transcript");
 	const [focusedPane, setFocusedPane] = useState<"transcript" | "editorial">("transcript");
 	const editorialSurface = activeTab === "summary" ? "summary" : activeTab === "comic" ? "comic" : "session";
-	const mobileTabs = editorial
-		? TABS.filter((tab) => tab.id !== "comic" || editorial.comicEnabled)
-		: TABS.filter((tab) => tab.id === "transcript" || tab.id === "session");
+	const mobileTabs = TABS.filter((tab) =>
+		(tab.id === "comic" ? Boolean(independentComic) || Boolean(editorial?.comicEnabled)
+		: editorial ? true : tab.id === "transcript" || tab.id === "session")
+	);
 
 	return (
 		<div className={styles.workspace}>
@@ -118,13 +124,13 @@ export function SessionEditWorkspace({
 				onFocusCapture={() => setFocusedPane("editorial")}
 				onPointerDown={() => setFocusedPane("editorial")}
 			>
-				{editorial ? (
+				{editorial || independentComic ? (
 					<div
 						className={styles.desktopEditorialTabs}
 						aria-label="Painel editorial"
 						role="tablist"
 					>
-						{EDITORIAL_TABS.filter((tab) => tab.id !== "comic" || editorial.comicEnabled).map((tab) => {
+						{EDITORIAL_TABS.filter((tab) => tab.id === "comic" ? Boolean(independentComic) || Boolean(editorial?.comicEnabled) : Boolean(editorial)).map((tab) => {
 							const active = editorialSurface === tab.id;
 							return (
 								<button
@@ -147,7 +153,9 @@ export function SessionEditWorkspace({
 				) : null}
 
 				<div className={styles.editorialBody} id="session-workspace-editorial-body">
-					{editorial ? (
+					{activeTab === "comic" && independentComic ? (
+						<IndependentSessionComicEditor {...independentComic} />
+					) : editorial ? (
 						<SessionEditorialDraftEditor
 							{...editorial}
 							active={focusedPane === "editorial"}

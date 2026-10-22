@@ -189,6 +189,9 @@ try:
         repo / "supabase/migrations/20261019163000_session_comic_editorial_draft.sql",
         repo / "supabase/migrations/20261019173000_session_comic_publication.sql",
         repo / "supabase/tests/session_comic_publication_atomic.sql",
+        repo / "supabase/migrations/20261020230000_session_comic_independent_draft.sql",
+        repo / "supabase/migrations/20261020231000_session_comic_independent_publication.sql",
+        repo / "supabase/tests/session_comic_independent_functional.sql",
     ]
     for path in paths:
         try:

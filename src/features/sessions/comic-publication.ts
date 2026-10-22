@@ -41,6 +41,23 @@ export async function findPublishedSessionComic(
 	if (typeof publicationId !== "string" || typeof sessionId !== "string")
 		return [];
 
+	// Prefer the latest independent HQ snapshot. It is immutable and never
+	// rewrites the editorial publication; retain legacy snapshots as fallback.
+	const { data: independent, error: independentError } = await client
+		.from("session_comic_publications")
+		.select("pages")
+		.eq("session_id", sessionId)
+		.eq("campaign_id", session.campaignId)
+		.order("version", { ascending: false })
+		.limit(1)
+		.maybeSingle();
+	if (independentError) throw new Error("Independent public HQ lookup unavailable");
+	if (independent) {
+		return readPublishedSessionComicPages(
+			independent.pages, session.campaignTechnicalSlug, sessionId,
+		) ?? [];
+	}
+
 	const { data, error: publicationError } = await client
 		.from("session_publications")
 		.select("id,session_id,campaign_id,comic_pages")

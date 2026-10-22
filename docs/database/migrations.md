@@ -2015,3 +2015,45 @@ Ambos os arquivos abaixo estão exclusivamente em `supabase/candidates/`, não e
 - `20261019173000_session_comic_publication.sql` — candidato #1765 para snapshot público ordenado da HQ, validação SQL das imagens e binding atómico à operação editorial; **não aplicado**, depende dos dois candidatos de HQ anteriores.
 
 A promoção exige validação local do PostgreSQL, integração com snapshot público e autorização da equipa. A interface editorial ativa continua usando os RPCs atuais até o fluxo completo ser aprovado.
+
+## HQ independente — #1765 / PR #1775
+
+### `20261020230000_session_comic_independent_draft.sql`
+
+Estado: migration forward-only proposta na PR #1775. A presença
+no Git não comprova a sua aplicação em Production.
+
+Cria `session_comic_drafts` e a função
+`save_session_comic_draft_atomic` para guardar páginas de HQ
+independentemente dos drafts editoriais.
+
+A operação exige um resumo editorial efetivamente publicado,
+valida o contexto da sessão e da campanha e utiliza controlo
+de concorrência (CAS). Não atualiza `sessions` nem
+`session_publications`.
+
+### `20261020231000_session_comic_independent_publication.sql`
+
+Estado: migration forward-only proposta na PR #1775.
+A aplicação remota permanece sujeita ao Production CD.
+
+Cria `session_comic_publications`, registos de operações
+idempotentes e a função `publish_session_comic_atomic`.
+
+A publicação guarda snapshots independentes da HQ, valida
+a publicação editorial de referência e os recursos de imagem,
+e impede alterações concorrentes incompatíveis.
+
+Não republica o resumo editorial nem altera o título,
+a data, a capa, o resumo ou a transcrição da sessão.
+
+### Validação e recuperação
+
+Antes da promoção: validar migrations num PostgreSQL
+descartável, autorizações, CAS, idempotência, integridade
+das imagens e preservação dos dados editoriais.
+
+Rollback lógico: desativar o consumidor da funcionalidade
+antes de qualquer correção. Após aplicação da migration,
+utilizar alterações forward-only, preservando os snapshots
+e os registos históricos.
