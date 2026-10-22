@@ -32,10 +32,10 @@ describe("session comic SQL migration integrity (#1765)", () => {
 		const comment = `comment on function public.${name}(`;
 		expect(sql.split(header)).toHaveLength(2);
 		expect(sql.split(comment)).toHaveLength(2);
-		expect(sql.split("end;\n$$;")).toHaveLength(2);
+		expect(sql.split(/end;\r?\n\$\$;/u)).toHaveLength(2);
 		const regexLine = "and a.sha256 ~ '^[0-9a-f]{64}$'";
 		const media = sql.indexOf(regexLine);
-		const end = sql.indexOf("end;\n$$;");
+		const end = sql.search(/end;\r?\n\$\$;/u);
 		expect(media).toBeGreaterThan(0);
 		expect(end).toBeGreaterThan(media);
 		expect(sql.indexOf("and a.mime_type in ('image/png', 'image/webp')", media)).toBeGreaterThan(media);
