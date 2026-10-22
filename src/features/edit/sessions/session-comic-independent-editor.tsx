@@ -4,7 +4,8 @@ import { useState } from "react";
 import { SessionComicEditor } from "./session-comic-editor";
 import { saveIndependentSessionComicDraftAction } from "./session-comic-draft-actions";
 import { publishIndependentSessionComicAction } from "./session-comic-independent-publication-actions";
-import { validateSessionComicDraftPages, type SessionComicDraftPage } from "./session-comic-model";
+import type { SessionComicDraftPage } from "./session-comic-model";
+import { independentComicEditorState } from "./session-comic-independent-editor-state";
 
 type Props = Readonly<{
   sessionId: string;
@@ -30,12 +31,12 @@ export function IndependentSessionComicEditor({
   const [uploadBusy, setUploadBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const dirty = JSON.stringify(pages) !== JSON.stringify(savedPages);
-  const ready = pages.length > 0 && validateSessionComicDraftPages(pages, { forPublication: true }).length === 0;
-  const canPublish = publishable && !dirty && !busy && !uploadBusy && ready && revision > publishedRevision;
+  const { dirty, ready, canSave, canPublish } = independentComicEditorState({
+    pages, savedPages, revision, publishedRevision, editable, publishable, busy, uploadBusy,
+  });
 
   async function save() {
-    if (!editable || busy || uploadBusy || !dirty) return;
+    if (!canSave) return;
     setBusy(true); setError(""); setMessage("");
     try {
       const result = await saveIndependentSessionComicDraftAction({
@@ -75,7 +76,7 @@ export function IndependentSessionComicEditor({
       {!ready && pages.length > 0 ? <p>Adicione uma descrição acessível a todas as páginas antes de publicar.</p> : null}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", marginTop: "1rem" }}>
         <button type="button" onClick={() => void save()}
-          disabled={!editable || busy || uploadBusy || !dirty}>Guardar rascunho HQ</button>
+          disabled={!canSave}>Guardar rascunho HQ</button>
         {publishable && ready && revision > publishedRevision ? (
           <button type="button" onClick={() => void publish()} disabled={!canPublish}>
             Publicar HQ
