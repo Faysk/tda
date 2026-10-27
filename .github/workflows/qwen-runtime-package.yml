@@ -102,7 +102,7 @@ jobs:
         run: |
           $actual = (git rev-parse HEAD).Trim().ToLowerInvariant()
           if ($actual -ne $env:TDA_SOURCE_SHA.ToLowerInvariant()) { throw "BUILD_SOURCE_SHA_MISMATCH:$actual" }
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: '0.12.18'
       - name: Build, probe and install-smoke isolated Qwen runtime
