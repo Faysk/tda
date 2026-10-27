@@ -44,7 +44,7 @@
     "wiki:review-packet": "node tools/wiki/review-packet.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1151.0",
+    "@aws-sdk/client-s3": "3.1155.0",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.3",
     "@xyflow/react": "12.12.0",
