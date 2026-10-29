@@ -1,0 +1,23 @@
+.reader {
+  margin: 1.25rem 0 2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--ds-border, rgba(255,255,255,.22));
+  border-radius: 12px;
+  background: rgba(120,120,120,.07);
+}
+.heading { font-weight: 650; margin-bottom: .75rem; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+.controls button, .controls select {
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: .4rem .7rem;
+  cursor: pointer;
+}
+.controls button:disabled { opacity: .45; cursor: not-allowed; }
+.controls button:focus-visible, .controls select:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.controls select option { color: #111; }
+.controls label { font-size: .9rem; }
+.error { margin: .75rem 0 0; }
