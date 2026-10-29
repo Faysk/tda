@@ -14,6 +14,7 @@ import { findPublishedSession, findPublishedSessionNeighbors, PublishedSessionUn
 import { sessionShareDescription } from "@/features/sessions/share";
 import { findPublishedSessionComic } from "@/features/sessions/comic-publication";
 import { SessionComicReader } from "@/features/sessions/session-comic-reader";
+import { SessionSpeechReader } from "@/features/sessions/session-speech-reader";
 import { buildStoryOutline } from "@/features/sessions/story-outline";
 import styles from "../../../../sessoes/[id]/page.module.css";
 
@@ -131,6 +132,7 @@ export default async function CampaignSession({params}:Params){
 			<div className={styles.readingIntro}><span className={styles.chapterMark} aria-hidden="true">◆</span><SessionShareActions title={session.title} description={sessionShareDescription(session.summary,session.title)}/></div>
 			<SessionComicReader pages={comicPages} textView={<>
 				{outline.length>=4?<SessionOutlineNav entries={outline}/>:null}
+				<SessionSpeechReader source={story} title={session.title}/>
 				<StoryMarkdown source={story} title={session.title}/>
 			</>}/>
 			{previous||next?<nav className={styles.pagination} aria-label="Navegação entre sessões">
