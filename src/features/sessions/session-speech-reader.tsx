@@ -11,7 +11,6 @@ function readableText(markdown: string, title: string): string {
     .replace(/^```[\s\S]*?^```/gm, "")
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/<[^>]*>/g, "")
     .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     .replace(/^\s*[-*+]\s+/gm, "")
     .replace(/^\s*\d+\.\s+/gm, "")
