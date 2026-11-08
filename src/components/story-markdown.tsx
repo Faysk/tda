@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import {
 	parseStoryMarkdown,
 	type StoryBlock,
@@ -122,7 +123,7 @@ export function StoryMarkdown({
 						return (
 							<figure className="story-illustration" key={key}>
 								<a href={src} target="_blank" rel="noopener noreferrer" aria-label={"Ampliar imagem: " + block.alt}>
-									<img alt={block.alt} src={src} loading="lazy" decoding="async" />
+									<Image alt={block.alt} src={src} width={1200} height={800} sizes="(max-width: 700px) 100vw, 880px" unoptimized />
 								</a>
 							</figure>
 						);
