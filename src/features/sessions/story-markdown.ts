@@ -3,7 +3,8 @@ export type StoryBlock =
 	| Readonly<{ type: "paragraph"; text: string }>
 	| Readonly<{ type: "quote"; text: string }>
 	| Readonly<{ type: "list"; ordered: boolean; items: readonly string[] }>
-	| Readonly<{ type: "rule" }>;
+	| Readonly<{ type: "rule" }>
+	| Readonly<{ type: "image"; alt: string; src: string; title?: string }>;
 
 function normalizeLines(source: string) {
 	return source.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n");
@@ -39,6 +40,32 @@ function paragraphText(lines: readonly string[]) {
 	return result.trim();
 }
 
+/**
+ * Only immutable session illustrations in the TDA public R2 namespace may be
+ * embedded. A draft's own private preview uses an authenticated server route.
+ * External Markdown URLs are displayed as text instead of causing third-party
+ * image requests or becoming dynamic navigation destinations.
+ */
+export function safeStoryImageUrl(raw: string): string | null {
+	const match = /^https:\/\/media\.dnd\.faysk\.dev\/campaigns\/([a-z0-9][a-z0-9-]{0,95})\/sessions\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/inline\/([a-f0-9]{64})\.(png|webp)$/u.exec(raw);
+	if (!match) return null;
+	const [, campaign, session, sha256, extension] = match;
+	return "https://media.dnd.faysk.dev/campaigns/" + campaign +
+		"/sessions/" + session + "/inline/" + sha256 + "." + extension;
+}
+
+function imageLine(line: string): Extract<StoryBlock, { type: "image" }> | null {
+	const match = /^!\[([^\]\n]+)\]\((https:\/\/[^\s)]+)(?:\s+"([^"\n]+)")?\)$/u.exec(line.trim());
+	const src = match ? safeStoryImageUrl(match[2] ?? "") : null;
+	if (!match || !src) return null;
+	return {
+		type: "image",
+		alt: match[1] ?? "",
+		src,
+		...(match[3] ? { title: match[3] } : {}),
+	};
+}
+
 function isRule(line: string) {
 	const compact = line.trim().replaceAll(" ", "");
 	return compact === "---" || compact === "***" || compact === "___";
@@ -64,6 +91,13 @@ export function parseStoryMarkdown(source: string): StoryBlock[] {
 
 		if (isRule(line)) {
 			blocks.push({ type: "rule" });
+			index += 1;
+			continue;
+		}
+
+		const image = imageLine(line);
+		if (image) {
+			blocks.push(image);
 			index += 1;
 			continue;
 		}
@@ -121,7 +155,7 @@ export function parseStoryMarkdown(source: string): StoryBlock[] {
 			const current = lines[index] ?? "";
 			if (!current.trim()) break;
 			if (paragraphLines.length > 0) {
-				if (isRule(current)) break;
+				if (isRule(current) || imageLine(current)) break;
 				if (/^\s*#{1,6}\s+/.test(current)) break;
 				if (/^\s*>/.test(current)) break;
 				if (/^\s*[-*+]\s+/.test(current)) break;

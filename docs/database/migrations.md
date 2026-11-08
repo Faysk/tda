@@ -2015,3 +2015,19 @@ Ambos os arquivos abaixo estão exclusivamente em `supabase/candidates/`, não e
 - `20261019173000_session_comic_publication.sql` — candidato #1765 para snapshot público ordenado da HQ, validação SQL das imagens e binding atómico à operação editorial; **não aplicado**, depende dos dois candidatos de HQ anteriores.
 
 A promoção exige validação local do PostgreSQL, integração com snapshot público e autorização da equipa. A interface editorial ativa continua usando os RPCs atuais até o fluxo completo ser aprovado.
+
+
+## \`20261108113000_session_inline_media_constraints.sql\` — imagens Markdown (#1796)
+
+**Estado:** candidate na PR #1797; **não aplicada em Production**. Git/merge não implicam migração remota. Aplicação apenas após os gates de CI, scratch PostgreSQL e migration history/CD autorizado.
+
+Objetivo e escopo:
+
+- Expandir o papel governado de \`media_assets\` com \`session_inline_image\`, mantendo todos os papéis já aceites, incluindo \`session_cover\` e \`session_comic_page\`.
+- Aceitar objetos imutáveis \`campaigns/<technical-slug>/sessions/<session-uuid>/inline/<sha256>.(png|webp)\`, preservando todos os padrões de chave existentes. Não introduz nova tabela, RPC, grants ou RLS.
+- Manter uploads e previews no R2 privado; a publicação autorizada da sessão promove apenas as imagens referenciadas no Markdown validado e verifica public delivery antes de confirmar o snapshot.
+- Evitar contornar a autorização de edição/publicação: bytes privados continuam acessíveis somente pelo preview autenticado de sessão/campanha.
+
+Validação e rollout: \`pnpm check\`, testes de media identity, teste de constraints na base PostgreSQL scratch e navegação editor → upload → draft → publication → leitura pública anónima. Aplicar pelo CD governado com verificação da migration history e read-back de \`media_assets\`; nenhuma publicação deve usar a nova role enquanto a constraint não estiver ativa em Production.
+
+Rollback: desativar a inserção/publicação de novas imagens inline antes de eventual correção; preservar assets e publicações anteriores, sem editar migration aplicada nem apagar objetos R2 de modo destrutivo. Qualquer correção de schema deve ser forward-only.
