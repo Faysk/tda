@@ -770,3 +770,19 @@
 		flex: 1 1 auto;
 	}
 }
+
+
+.inlineInsert {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: end;
+	gap: 10px;
+	padding: 12px 14px;
+	border-bottom: 1px solid var(--ds-border);
+}
+.inlineInsert label { display: grid; gap: 4px; flex: 1 1 210px; font-size: 0.75rem; color: var(--ds-foreground-soft); }
+.inlineInsert input:not([type="file"]) { min-width: 0; width: 100%; padding: 9px 10px; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-sm); color: var(--ds-foreground); background: var(--ds-surface); font: inherit; }
+.inlineInsert button { padding: 9px 12px; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-sm); color: var(--ds-foreground); background: var(--ds-canvas-subtle); cursor: pointer; }
+.inlineInsert button:disabled { opacity: 0.5; cursor: not-allowed; }
+.inlineInsert small { flex-basis: 100%; }
+.inlineFileInput { display: none; }
