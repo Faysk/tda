@@ -52,19 +52,32 @@ Primeiro parágrafo.
 		]);
 	});
 
-	it("parses standalone HTTPS images between chapters", () => {
-		const blocks = parseStoryMarkdown("# Dança\n![Astel com Talven](https://media.dnd.faysk.dev/image.webp \"tda-inline:11111111-1111-4111-8111-111111111111\")\n## O mestre\nUma aula.");
+	it("parses only canonical TDA inline images between chapters", () => {
+		const imageUrl = "https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/11111111-1111-4111-8111-111111111111/inline/" + "a".repeat(64) + ".webp";
+		const blocks = parseStoryMarkdown("# Dança\n![Astel com Talven](" + imageUrl + ' "tda-inline:22222222-2222-4222-8222-222222222222")' + "\n## O mestre\nUma aula.");
 		expect(blocks).toEqual([
 			{ type: "heading", level: 1, text: "Dança" },
-			{ type: "image", alt: "Astel com Talven", src: "https://media.dnd.faysk.dev/image.webp", title: "tda-inline:11111111-1111-4111-8111-111111111111" },
+			{ type: "image", alt: "Astel com Talven", src: imageUrl, title: "tda-inline:22222222-2222-4222-8222-222222222222" },
 			{ type: "heading", level: 2, text: "O mestre" },
 			{ type: "paragraph", text: "Uma aula." },
 		]);
 	});
 
-	it("does not interpret non-HTTPS image sources", () => {
-		for (const url of ["javascript:alert(1)", "http://example.org/portrait.png", "//example.org/portrait.png"]) {
-			expect(parseStoryMarkdown("![Retrato](" + url + ")")).toEqual([{ type: "paragraph", text: "![Retrato](" + url + ")" }]);
+	it("does not render untrusted Markdown image destinations as navigable images", () => {
+		const good = "https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/11111111-1111-4111-8111-111111111111/inline/" + "a".repeat(64) + ".webp";
+		for (const url of [
+			"javascript:alert(1)", "http://example.org/portrait.png",
+			"//example.org/portrait.png", "https://evil.example/portrait.webp",
+			"https://media.dnd.faysk.dev.evil.example" + new URL(good).pathname,
+			good + "?token=secret", good + "#fragment",
+			good.replace("/inline/", "/cover/"),
+			good.replace("/inline/", "/inline/%2e%2e/"),
+			good.replace("yuhara-main", "../private"),
+			"https://media.dnd.faysk.dev/image.webp",
+		]) {
+			expect(parseStoryMarkdown("![Retrato](" + url + ")")).toEqual([
+				{ type: "paragraph", text: "![Retrato](" + url + ")" },
+			]);
 		}
 	});
 

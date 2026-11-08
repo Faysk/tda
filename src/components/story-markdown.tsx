@@ -122,9 +122,14 @@ export function StoryMarkdown({
 							: block.src;
 						return (
 							<figure className="story-illustration" key={key}>
-								<a href={src} target="_blank" rel="noopener noreferrer" aria-label={"Ampliar imagem: " + block.alt}>
-									<Image alt={block.alt} src={src} width={1200} height={800} sizes="(max-width: 700px) 100vw, 880px" unoptimized />
-								</a>
+								<details>
+									<summary aria-label={"Ampliar ou reduzir ilustração: " + block.alt}>
+										<Image alt={block.alt} src={src} width={1200} height={800} sizes="(max-width: 700px) 100vw, 880px" unoptimized />
+									</summary>
+									<div className="story-illustration-expanded">
+										<Image alt={block.alt} src={src} width={1600} height={1200} sizes="(max-width: 700px) 100vw, 880px" unoptimized />
+									</div>
+								</details>
 							</figure>
 						);
 					}

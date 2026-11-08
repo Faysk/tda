@@ -40,15 +40,18 @@ function paragraphText(lines: readonly string[]) {
 	return result.trim();
 }
 
+/**
+ * Only immutable session illustrations in the TDA public R2 namespace may be
+ * embedded. A draft's own private preview uses an authenticated server route.
+ * External Markdown URLs are displayed as text instead of causing third-party
+ * image requests or becoming dynamic navigation destinations.
+ */
 export function safeStoryImageUrl(raw: string): string | null {
-	if (raw.length > 2048 || !raw.startsWith("https://")) return null;
-	try {
-		const url = new URL(raw);
-		if (url.protocol !== "https:" || url.username || url.password || url.hash || url.port) return null;
-		return raw;
-	} catch {
-		return null;
-	}
+	const match = /^https:\/\/media\.dnd\.faysk\.dev\/campaigns\/([a-z0-9][a-z0-9-]{0,95})\/sessions\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/inline\/([a-f0-9]{64})\.(png|webp)$/u.exec(raw);
+	if (!match) return null;
+	const [, campaign, session, sha256, extension] = match;
+	return "https://media.dnd.faysk.dev/campaigns/" + campaign +
+		"/sessions/" + session + "/inline/" + sha256 + "." + extension;
 }
 
 function imageLine(line: string): Extract<StoryBlock, { type: "image" }> | null {
