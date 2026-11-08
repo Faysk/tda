@@ -119,3 +119,29 @@
 		padding: 16px 18px;
 	}
 }
+
+/* Illustrations belong to the story flow, not the cover or comic reader. */
+.story-content .story-illustration {
+	margin: clamp(22px, 4vw, 38px) 0;
+	width: 100%;
+}
+
+.story-content .story-illustration a {
+	display: block;
+	border-radius: var(--ds-radius-lg);
+	overflow: hidden;
+	border: 1px solid var(--ds-border);
+}
+
+.story-content .story-illustration a:focus-visible {
+	outline: 2px solid var(--ds-accent);
+	outline-offset: 4px;
+}
+
+.story-content .story-illustration img {
+	display: block;
+	max-width: 100%;
+	width: 100%;
+	height: auto;
+	object-fit: contain;
+}

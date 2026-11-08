@@ -63,7 +63,15 @@ function StoryHeading({
 	}
 }
 
-export function StoryMarkdown({ source, title }: { source: string; title: string }) {
+export function StoryMarkdown({
+	source,
+	title,
+	previewSessionId,
+}: {
+	source: string;
+	title: string;
+	previewSessionId?: string;
+}) {
 	const blocks = parseStoryMarkdown(source);
 	const normalizedTitle = normalizeStoryHeading(title);
 	const outlineByBlock = new Map(
@@ -103,6 +111,20 @@ export function StoryMarkdown({ source, title }: { source: string; title: string
 									<li key={itemKey}>{renderInline(item)}</li>
 								))}
 							</List>
+						);
+					}
+					case "image": {
+						// An editorial-only reference permits private previews before promotion.
+						const assetId = /^tda-inline:([0-9a-f-]{36})$/iu.exec(block.title ?? "")?.[1];
+						const src = previewSessionId && assetId
+							? "/api/edit/session-inline/" + encodeURIComponent(previewSessionId) + "/" + encodeURIComponent(assetId)
+							: block.src;
+						return (
+							<figure className="story-illustration" key={key}>
+								<a href={src} target="_blank" rel="noopener noreferrer" aria-label={"Ampliar imagem: " + block.alt}>
+									<img alt={block.alt} src={src} loading="lazy" decoding="async" />
+								</a>
+							</figure>
 						);
 					}
 					case "rule":

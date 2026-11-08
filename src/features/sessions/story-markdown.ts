@@ -3,7 +3,8 @@ export type StoryBlock =
 	| Readonly<{ type: "paragraph"; text: string }>
 	| Readonly<{ type: "quote"; text: string }>
 	| Readonly<{ type: "list"; ordered: boolean; items: readonly string[] }>
-	| Readonly<{ type: "rule" }>;
+	| Readonly<{ type: "rule" }>
+	| Readonly<{ type: "image"; alt: string; src: string; title?: string }>;
 
 function normalizeLines(source: string) {
 	return source.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n");
@@ -39,6 +40,29 @@ function paragraphText(lines: readonly string[]) {
 	return result.trim();
 }
 
+export function safeStoryImageUrl(raw: string): string | null {
+	if (raw.length > 2048 || !raw.startsWith("https://")) return null;
+	try {
+		const url = new URL(raw);
+		if (url.protocol !== "https:" || url.username || url.password || url.hash || url.port) return null;
+		return raw;
+	} catch {
+		return null;
+	}
+}
+
+function imageLine(line: string): Extract<StoryBlock, { type: "image" }> | null {
+	const match = /^!\[([^\]\n]+)\]\((https:\/\/[^\s)]+)(?:\s+"([^"\n]+)")?\)$/u.exec(line.trim());
+	const src = match ? safeStoryImageUrl(match[2] ?? "") : null;
+	if (!match || !src) return null;
+	return {
+		type: "image",
+		alt: match[1] ?? "",
+		src,
+		...(match[3] ? { title: match[3] } : {}),
+	};
+}
+
 function isRule(line: string) {
 	const compact = line.trim().replaceAll(" ", "");
 	return compact === "---" || compact === "***" || compact === "___";
@@ -64,6 +88,13 @@ export function parseStoryMarkdown(source: string): StoryBlock[] {
 
 		if (isRule(line)) {
 			blocks.push({ type: "rule" });
+			index += 1;
+			continue;
+		}
+
+		const image = imageLine(line);
+		if (image) {
+			blocks.push(image);
 			index += 1;
 			continue;
 		}
@@ -121,7 +152,7 @@ export function parseStoryMarkdown(source: string): StoryBlock[] {
 			const current = lines[index] ?? "";
 			if (!current.trim()) break;
 			if (paragraphLines.length > 0) {
-				if (isRule(current)) break;
+				if (isRule(current) || imageLine(current)) break;
 				if (/^\s*#{1,6}\s+/.test(current)) break;
 				if (/^\s*>/.test(current)) break;
 				if (/^\s*[-*+]\s+/.test(current)) break;

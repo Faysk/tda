@@ -52,6 +52,22 @@ Primeiro parágrafo.
 		]);
 	});
 
+	it("parses standalone HTTPS images between chapters", () => {
+		const blocks = parseStoryMarkdown("# Dança\n![Astel com Talven](https://media.dnd.faysk.dev/image.webp \"tda-inline:11111111-1111-4111-8111-111111111111\")\n## O mestre\nUma aula.");
+		expect(blocks).toEqual([
+			{ type: "heading", level: 1, text: "Dança" },
+			{ type: "image", alt: "Astel com Talven", src: "https://media.dnd.faysk.dev/image.webp", title: "tda-inline:11111111-1111-4111-8111-111111111111" },
+			{ type: "heading", level: 2, text: "O mestre" },
+			{ type: "paragraph", text: "Uma aula." },
+		]);
+	});
+
+	it("does not interpret non-HTTPS image sources", () => {
+		for (const url of ["javascript:alert(1)", "http://example.org/portrait.png", "//example.org/portrait.png"]) {
+			expect(parseStoryMarkdown("![Retrato](" + url + ")")).toEqual([{ type: "paragraph", text: "![Retrato](" + url + ")" }]);
+		}
+	});
+
 	it("keeps raw html as plain text instead of interpreting it", () => {
 		const blocks = parseStoryMarkdown('<script>alert("não")</script>');
 		expect(blocks).toEqual([
