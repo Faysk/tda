@@ -108,7 +108,7 @@ export function SessionInlineInsert({
 	}
 
 	return (
-		<div className={styles.inlineInsert} role="group" aria-label="Inserir ilustração no resumo">
+		<fieldset className={styles.inlineInsert} aria-label="Inserir ilustração no resumo">
 			<label>
 				<span>Descrição da imagem</span>
 				<input
@@ -128,6 +128,6 @@ export function SessionInlineInsert({
 			{busy ? <small role="status">Enviando e validando imagem: {progress}%</small> : null}
 			{error ? <small role="alert">{error}</small> : null}
 			{message ? <small role="status">{message}</small> : null}
-		</div>
+		</fieldset>
 	);
 }
