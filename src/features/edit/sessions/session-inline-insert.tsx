@@ -108,7 +108,7 @@ export function SessionInlineInsert({
 	}
 
 	return (
-		<div className={styles.inlineInsert} aria-label="Inserir ilustração no resumo">
+		<div className={styles.inlineInsert} role="group" aria-label="Inserir ilustração no resumo">
 			<label>
 				<span>Descrição da imagem</span>
 				<input
