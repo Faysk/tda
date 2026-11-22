@@ -16,7 +16,7 @@ packaging = ["pyinstaller==6.22.3"]
 desktop = [
     "pywebview==6.2.1",
     "pystray==0.19.5",
-    "pillow==12.3.0",
+    "pillow==13.0.0",
 ]
 # ASR remains isolated from the HTTP Agent; engine runtimes are packaged separately.
 asr = ["faster-whisper==1.2.1", "ctranslate2==4.8.3"]
