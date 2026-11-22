@@ -8,6 +8,7 @@ import { resolveEditSessionCampaign } from "./repository";
 import { sessionComicFeatureEnabled } from "./session-comic-feature";
 import { validateSessionComicDraftPages } from "./session-comic-model";
 import { prepareSessionComicForPublication } from "./session-comic-publication";
+import { prepareSessionInlineForPublication } from "./session-inline-publication";
 import { sessionDraftReadiness } from "./editorial-draft-model";
 import {
 	type SessionPublicationRequest,
@@ -151,6 +152,15 @@ export async function publishSessionEditorialDraftAction(
 		const context = await readSessionPublicationContext(request.sessionId, sessionCampaign.technicalSlug);
 		if (!context)
 			return { ok: false as const, reason: "not_found" as const };
+
+		const inlineReady = await prepareSessionInlineForPublication({
+			sessionId: request.sessionId,
+			campaignId: context.campaignId,
+			campaignSlug: sessionCampaign.technicalSlug,
+			summary: draft.fullSummary,
+		});
+		if (!inlineReady)
+			return { ok: false as const, reason: "inline_unverified" as const };
 
 		const publicCoverUrl = await prepareSessionCoverForPublication({
 			sessionId: request.sessionId,

@@ -13,6 +13,7 @@ import { formatSessionDate } from "@/features/sessions/model";
 import styles from "@/features/edit/workbench.module.css";
 import draftStyles from "./editorial-draft.module.css";
 import { SessionComicEditor } from "./session-comic-editor";
+import { SessionInlineInsert } from "./session-inline-insert";
 import { validateSessionComicDraftPages, type SessionComicDraftPage } from "./session-comic-model";
 import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
 import { publishSessionEditorialDraftAction } from "./session-publication-actions";
@@ -146,6 +147,8 @@ export function SessionEditorialDraftEditor({
 	const [comicPages, setComicPages] = useState<readonly SessionComicDraftPage[]>(initial.comicPages ?? []);
 	const [baselineComicPages, setBaselineComicPages] = useState<readonly SessionComicDraftPage[]>(initial.comicPages ?? []);
 	const [comicUploadPending, setComicUploadPending] = useState(false);
+	const [inlineUploadPending, setInlineUploadPending] = useState(false);
+	const summaryTextareaRef = useRef<HTMLTextAreaElement>(null);
 	const [revision, setRevision] = useState(initial.revision);
 	const [draftId, setDraftId] = useState<string | null>(initial.draftId);
 	const [baseTranscriptRevisionId, setBaseTranscriptRevisionId] = useState(
@@ -213,6 +216,7 @@ export function SessionEditorialDraftEditor({
 		!transcriptChanged &&
 		!coverUploadPending &&
 		!comicUploadPending &&
+		!inlineUploadPending &&
 		!comicPublicationIssues.length &&
 		phase !== "saving" &&
 		phase !== "conflict" &&
@@ -389,6 +393,22 @@ export function SessionEditorialDraftEditor({
 		);
 	}
 
+	function insertInlineMarkdown(markdown: string) {
+		const textarea = summaryTextareaRef.current;
+		setFields((current) => {
+			const start = textarea?.selectionStart ?? current.fullSummary.length;
+			const end = textarea?.selectionEnd ?? start;
+			const before = current.fullSummary.slice(0, start);
+			const after = current.fullSummary.slice(end);
+			const prefix = before.endsWith("\n\n") || !before ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+			const suffix = after.startsWith("\n\n") || !after ? "" : after.startsWith("\n") ? "\n" : "\n\n";
+			const fullSummary = before + prefix + markdown + suffix + after;
+			return fullSummary.length <= SESSION_DRAFT_LIMITS.fullSummary
+				? { ...current, fullSummary }
+				: current;
+		});
+	}
+
 	function openPublicationConfirmation() {
 		if (!publishReady || !draftId) {
 			setPublishPhase("error");
@@ -399,6 +419,8 @@ export function SessionEditorialDraftEditor({
 						? "Sua conta não tem a capability de publicação desta campanha."
 						: coverUploadPending
 							? "Aguarde a nova capa terminar de enviar e validar."
+						: inlineUploadPending
+							? "Aguarde a ilustração terminar de enviar e validar."
 							: dirty
 								? "Salve o draft antes de publicar."
 								: transcriptChanged
@@ -437,6 +459,7 @@ export function SessionEditorialDraftEditor({
 		if (
 			coverUploadPending ||
 			comicUploadPending ||
+			inlineUploadPending ||
 			dirty ||
 			draftId !== intent.draftId ||
 			revision !== intent.draftRevision ||
@@ -448,7 +471,7 @@ export function SessionEditorialDraftEditor({
 					? "A nova capa ainda está sendo enviada ou validada. Aguarde a conclusão antes de publicar."
 					: "O draft mudou depois da confirmação. Abra a confirmação novamente.",
 			);
-			if (!coverUploadPending && !comicUploadPending) setPublishIntent(null);
+			if (!coverUploadPending && !comicUploadPending && !inlineUploadPending) setPublishIntent(null);
 			return;
 		}
 
@@ -479,6 +502,8 @@ export function SessionEditorialDraftEditor({
 							? "A transcrição mudou desde a base do draft. Revise e salve antes de publicar."
 							: result.reason === "not_ready"
 								? "O draft não passou pela validação autoritativa de publicação."
+							: result.reason === "inline_unverified"
+								? "Uma ou mais imagens do resumo não puderam ser verificadas e publicadas. A versão anterior continua ativa."
 							: result.reason === "comic_unverified"
 								? "Uma ou mais páginas da HQ não puderam ser verificadas ou publicadas."
 								: result.reason === "cover_unverified"
@@ -658,7 +683,14 @@ export function SessionEditorialDraftEditor({
 								{SESSION_DRAFT_LIMITS.fullSummary.toLocaleString("pt-BR")}
 							</small>
 						</header>
+						<SessionInlineInsert
+							sessionId={sessionId}
+							editable={editable}
+							onInsert={insertInlineMarkdown}
+							onBusyChange={setInlineUploadPending}
+						/>
 						<textarea
+							ref={summaryTextareaRef}
 							aria-label="Resumo completo em Markdown"
 							className={[styles.textarea, draftStyles.summaryEditor].join(" ")}
 							disabled={!editable}
@@ -685,6 +717,7 @@ export function SessionEditorialDraftEditor({
 								<StoryMarkdown
 									source={fields.fullSummary}
 									title={fields.title.trim() || "Sessão"}
+									previewSessionId={sessionId}
 								/>
 							) : (
 								<p className={styles.muted}>
@@ -815,7 +848,7 @@ export function SessionEditorialDraftEditor({
 						</dl>
 						<p className={styles.muted}>
 							A transcrição completa continuará privada. Serão publicados a capa, o
-							arco, o título, a data e os resumos. Se houver HQ, também serão
+							arco, o título, a data e os resumos. As ilustrações referenciadas no resumo também serão verificadas e publicadas. Se houver HQ, também serão
 							publicadas as páginas ilustradas verificadas, por ordem.
 						</p>
 						{coverUploadPending ? (
@@ -851,7 +884,7 @@ export function SessionEditorialDraftEditor({
 								aria-busy={publishPhase === "publishing" || undefined}
 								className={draftStyles.primaryButton}
 								disabled={
-									publishPhase === "publishing" || coverUploadPending || dirty
+									publishPhase === "publishing" || coverUploadPending || inlineUploadPending || dirty
 								}
 								onClick={() => void publish()}
 								type="button"

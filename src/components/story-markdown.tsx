@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import {
 	parseStoryMarkdown,
 	type StoryBlock,
@@ -63,7 +64,15 @@ function StoryHeading({
 	}
 }
 
-export function StoryMarkdown({ source, title }: { source: string; title: string }) {
+export function StoryMarkdown({
+	source,
+	title,
+	previewSessionId,
+}: {
+	source: string;
+	title: string;
+	previewSessionId?: string;
+}) {
 	const blocks = parseStoryMarkdown(source);
 	const normalizedTitle = normalizeStoryHeading(title);
 	const outlineByBlock = new Map(
@@ -103,6 +112,25 @@ export function StoryMarkdown({ source, title }: { source: string; title: string
 									<li key={itemKey}>{renderInline(item)}</li>
 								))}
 							</List>
+						);
+					}
+					case "image": {
+						// An editorial-only reference permits private previews before promotion.
+						const assetId = /^tda-inline:([0-9a-f-]{36})$/iu.exec(block.title ?? "")?.[1];
+						const src = previewSessionId && assetId
+							? "/api/edit/session-inline/" + encodeURIComponent(previewSessionId) + "/" + encodeURIComponent(assetId)
+							: block.src;
+						return (
+							<figure className="story-illustration" key={key}>
+								<details>
+									<summary aria-label={"Ampliar ou reduzir ilustração: " + block.alt}>
+										<Image alt={block.alt} src={src} width={1200} height={800} sizes="(max-width: 700px) 100vw, 880px" unoptimized />
+									</summary>
+									<div className="story-illustration-expanded">
+										<Image alt={block.alt} src={src} width={1600} height={1200} sizes="(max-width: 700px) 100vw, 880px" unoptimized />
+									</div>
+								</details>
+							</figure>
 						);
 					}
 					case "rule":
