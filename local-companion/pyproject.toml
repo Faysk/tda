@@ -4,7 +4,7 @@ version = "0.3.29"
 description = "Per-user local processing supervisor for TDA"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "fastapi==0.143.1",
+    "fastapi==0.165.0",
     "uvicorn==0.54.0",
     "psutil==7.2.2",
     "nvidia-ml-py==13.615.71",
@@ -16,7 +16,7 @@ packaging = ["pyinstaller==6.22.3"]
 desktop = [
     "pywebview==6.2.1",
     "pystray==0.19.5",
-    "pillow==12.3.0",
+    "pillow==13.0.0",
 ]
 # ASR remains isolated from the HTTP Agent; engine runtimes are packaged separately.
 asr = ["faster-whisper==1.2.1", "ctranslate2==4.8.3"]
