@@ -118,7 +118,7 @@ WINDOWS_NVIDIA_PACKAGES = frozenset({
     "nvidia-cudnn-cu12",
     "nvidia-cuda-runtime-cu12",
 })
-_STABLE_NUMERIC_RELEASE = re.compile(r"^\\d+(?:\\.\\d+)+$")
+_STABLE_NUMERIC_RELEASE = re.compile(r"^\d+(?:\.\d+)+$")
 
 
 def latest_windows_nvidia_pypi(name: str) -> str:
