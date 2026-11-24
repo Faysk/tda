@@ -204,3 +204,82 @@ def test_whisper_pyav_compatibility_exception_is_exact_and_runtime_owned():
 
     whisper = json.loads(tool.WHISPER_RUNTIME.read_text(encoding="utf-8"))
     assert whisper["dependency_freshness_exceptions"]["av"]["version"] == "18.1.0"
+
+
+def test_latest_windows_nvidia_pypi_ignores_linux_only_and_yanked(monkeypatch):
+    tool = _load_tool()
+    value = {
+        "info": {"version": "12.9.3.13"},
+        "releases": {
+            "12.9.3.13": [
+                {"filename": "nvidia_cublas_cu12-12.9.3.13-py3-none-manylinux_2_27_x86_64.whl",
+                 "packagetype": "bdist_wheel", "yanked": False}
+            ],
+            "12.9.2.10": [
+                {"filename": "nvidia_cublas_cu12-12.9.2.10-py3-none-win_amd64.whl",
+                 "packagetype": "bdist_wheel", "yanked": False}
+            ],
+            "12.9.4.1": [
+                {"filename": "nvidia_cublas_cu12-12.9.4.1-py3-none-win_amd64.whl",
+                 "packagetype": "bdist_wheel", "yanked": True}
+            ],
+            "12.9.6rc1": [
+                {"filename": "nvidia_cublas_cu12-12.9.6rc1-py3-none-win_amd64.whl",
+                 "packagetype": "bdist_wheel", "yanked": False}
+            ],
+        },
+    }
+    monkeypatch.setattr(tool, "fetch_json", lambda url: value)
+    assert tool.latest_windows_nvidia_pypi("nvidia-cublas-cu12") == "12.9.2.10"
+
+
+def test_latest_windows_nvidia_pypi_fails_closed_without_eligible_wheel(monkeypatch):
+    tool = _load_tool()
+    monkeypatch.setattr(tool, "fetch_json", lambda url: {
+        "releases": {
+            "12.9.3.13": [
+                {"filename": "nvidia_cublas_cu12-12.9.3.13-py3-none-manylinux_x86_64.whl",
+                 "packagetype": "bdist_wheel", "yanked": False}
+            ]
+        }
+    })
+    with pytest.raises(RuntimeError, match="PYPI_WINDOWS_NVIDIA_WHEEL_MISSING"):
+        tool.latest_windows_nvidia_pypi("nvidia-cublas-cu12")
+    with pytest.raises(ValueError, match="NOT_A_WINDOWS_NVIDIA_PACKAGE"):
+        tool.latest_windows_nvidia_pypi("fastapi")
+
+
+def test_freshness_main_uses_windows_cuda_wheel_not_linux_only_latest(monkeypatch, capsys):
+    tool = _load_tool()
+    monkeypatch.setattr(
+        tool, "collect",
+        lambda: (
+            {"whisper/nvidia-cublas-cu12": "12.9.2.10"},
+            {"whisper/nvidia-cublas-cu12": ["whisper-windows-x64.json"]},
+            "3.12.14", {}, {},
+        ),
+    )
+    monkeypatch.setattr(tool, "latest_python_312", lambda: "3.12.14")
+    monkeypatch.setattr(tool, "latest_windows_nvidia_pypi", lambda _: "12.9.2.10")
+    monkeypatch.setattr(
+        tool, "latest_pypi",
+        lambda _: (_ for _ in ()).throw(AssertionError("Linux-only latest must not be used")),
+    )
+    assert tool.main() == 0
+    assert "whisper/nvidia-cublas-cu12: 12.9.2.10 -> 12.9.2.10 [current]" in capsys.readouterr().out
+
+
+def test_freshness_main_flags_newer_windows_cuda_wheel(monkeypatch, capsys):
+    tool = _load_tool()
+    monkeypatch.setattr(
+        tool, "collect",
+        lambda: (
+            {"whisper/nvidia-cudnn-cu12": "9.27.0.42"},
+            {"whisper/nvidia-cudnn-cu12": ["whisper-windows-x64.json"]},
+            "3.12.14", {}, {},
+        ),
+    )
+    monkeypatch.setattr(tool, "latest_python_312", lambda: "3.12.14")
+    monkeypatch.setattr(tool, "latest_windows_nvidia_pypi", lambda _: "9.28.1.4")
+    assert tool.main() == 1
+    assert "whisper/nvidia-cudnn-cu12: 9.27.0.42 -> 9.28.1.4 [STALE]" in capsys.readouterr().out

@@ -110,6 +110,49 @@ def latest_pypi(name: str) -> str:
     return version
 
 
+# NVIDIA publishes some newer cu12 versions for Linux before a Windows wheel
+# exists. The Companion bundles Windows DLLs, so comparing to a Linux-only
+# latest would demand an un-installable version and block every release.
+WINDOWS_NVIDIA_PACKAGES = frozenset({
+    "nvidia-cublas-cu12",
+    "nvidia-cudnn-cu12",
+    "nvidia-cuda-runtime-cu12",
+})
+_STABLE_NUMERIC_RELEASE = re.compile(r"^\d+(?:\.\d+)+$")
+
+
+def latest_windows_nvidia_pypi(name: str) -> str:
+    if name not in WINDOWS_NVIDIA_PACKAGES:
+        raise ValueError(f"NOT_A_WINDOWS_NVIDIA_PACKAGE:{name}")
+    value = fetch_json(f"https://pypi.org/pypi/{name}/json")
+    releases = value.get("releases") if isinstance(value, dict) else None
+    if not isinstance(releases, dict):
+        raise RuntimeError(f"PYPI_RELEASES_INVALID:{name}")
+
+    candidates: list[tuple[tuple[int, ...], str]] = []
+    for version, files in releases.items():
+        if not isinstance(version, str) or not _STABLE_NUMERIC_RELEASE.fullmatch(version):
+            continue
+        if not isinstance(files, list):
+            continue
+        for item in files:
+            if not isinstance(item, dict):
+                continue
+            filename = item.get("filename")
+            if (
+                item.get("packagetype") == "bdist_wheel"
+                and isinstance(filename, str)
+                and filename.endswith("-py3-none-win_amd64.whl")
+                and item.get("yanked") is not True
+            ):
+                candidates.append((tuple(map(int, version.split("."))), version))
+                break
+    if not candidates:
+        # Fail closed: no eligible Windows wheel is NOT a passing audit.
+        raise RuntimeError(f"PYPI_WINDOWS_NVIDIA_WHEEL_MISSING:{name}")
+    return max(candidates)[1]
+
+
 def latest_python_312() -> str:
     versions: list[tuple[int, str]] = []
     for page in range(1, 4):
@@ -356,7 +399,11 @@ def main() -> int:
     for name in sorted(pins):
         pinned = pins[name]
         registry_name = name.split("/", 1)[1] if "/" in name else name
-        latest = latest_pypi(registry_name)
+        latest = (
+            latest_windows_nvidia_pypi(registry_name)
+            if registry_name in WINDOWS_NVIDIA_PACKAGES
+            else latest_pypi(registry_name)
+        )
         exception = exceptions.get(name)
         excepted = (
             pinned != latest
