@@ -25,6 +25,7 @@ import {
 	sessionInlineObjectKey,
 	sessionInlinePendingChunkObjectKey,
 	sessionInlineUploadChunkCount,
+	sessionInlineUploadIntentMismatch,
 } from "./session-inline-media";
 
 export type VerifiedSessionInlineUpload = Readonly<{
@@ -252,12 +253,12 @@ export async function finalizeSessionInlinePendingUpload(input: {
 	if (offset !== input.expectedBytes) failure("UPLOAD_LENGTH_MISMATCH");
 
 	const info = inspectWorldEntityImage(bytes);
-	if (
-		info.sha256 !== input.expectedSha256 ||
-		info.mimeType !== input.expectedMimeType ||
-		info.bytes !== input.expectedBytes
-	)
-		failure("UPLOAD_INTENT_MISMATCH");
+	const mismatch = sessionInlineUploadIntentMismatch(info, {
+		sha256: input.expectedSha256,
+		mimeType: input.expectedMimeType,
+		bytes: input.expectedBytes,
+	});
+	if (mismatch) failure(mismatch);
 	if (info.width * info.height > SESSION_INLINE_MEDIA_MAX_PIXELS)
 		failure("PIXEL_BUDGET_EXCEEDED");
 
