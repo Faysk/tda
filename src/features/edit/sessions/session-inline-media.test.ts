@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { inspectWorldEntityImage } from "@/features/world-explorer/world-entity-media-image";
 import {
+	detectSessionInlineImageMime,
 	isSessionInlineUploadIntent,
+	sessionInlineUploadIntentMismatch,
 	SESSION_INLINE_MEDIA_ROLE,
 	sessionInlineObjectKey,
 	sessionInlinePendingChunkObjectKey,
@@ -102,6 +104,7 @@ describe("inline media identity", () => {
 			[png, "image/png", 800, 1200, "png"],
 			[webp, "image/webp", 1600, 900, "webp"],
 		] as const) {
+			expect(detectSessionInlineImageMime(bytes)).toBe(mimeType);
 			const info = inspectWorldEntityImage(bytes);
 			expect(info).toMatchObject({ mimeType, width, height, extension });
 			const sha256 = createHash("sha256").update(bytes).digest("hex");
@@ -119,6 +122,27 @@ describe("inline media identity", () => {
 					"/inline/" + sha256 + "." + extension,
 			);
 		}
+	});
+
+	it("derives the intent MIME from bytes instead of browser metadata", () => {
+		const png = Buffer.alloc(24);
+		Buffer.from("89504e470d0a1a0a", "hex").copy(png);
+		const falselyDeclared = { type: "image/webp", bytes: png };
+		expect(detectSessionInlineImageMime(falselyDeclared.bytes)).toBe("image/png");
+		expect(detectSessionInlineImageMime(Buffer.alloc(24))).toBeNull();
+		expect(detectSessionInlineImageMime(png.subarray(0, 8))).toBeNull();
+		const wrongRiff = Buffer.alloc(24);
+		wrongRiff.write("RIFF", 0);
+		wrongRiff.write("WAVE", 8);
+		expect(detectSessionInlineImageMime(wrongRiff)).toBeNull();
+	});
+
+	it("distinguishes integrity failures without weakening checks", () => {
+		const expected = { sha256: hash, mimeType: "image/png", bytes: 1024 } as const;
+		expect(sessionInlineUploadIntentMismatch(expected, expected)).toBeNull();
+		expect(sessionInlineUploadIntentMismatch({ ...expected, mimeType: "image/webp" }, expected)).toBe("UPLOAD_MIME_MISMATCH");
+		expect(sessionInlineUploadIntentMismatch({ ...expected, sha256: "b".repeat(64) }, expected)).toBe("UPLOAD_HASH_MISMATCH");
+		expect(sessionInlineUploadIntentMismatch({ ...expected, bytes: 1025 }, expected)).toBe("UPLOAD_SIZE_MISMATCH");
 	});
 
 	it("accepts only bounded PNG/WebP upload declarations", () => {
