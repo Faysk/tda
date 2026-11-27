@@ -9,6 +9,8 @@ import {
 import {
 	SESSION_INLINE_MEDIA_MAX_BYTES,
 	SESSION_INLINE_MEDIA_UPLOAD_CHUNK_BYTES,
+	detectSessionInlineImageMime,
+	sessionInlineUploadChunkCount,
 } from "./session-inline-media";
 import styles from "./editorial-draft.module.css";
 
@@ -43,10 +45,6 @@ export function SessionInlineInsert({
 		if (!editable || busy || available !== true) return;
 		setError(null);
 		setMessage(null);
-		if (file.type !== "image/png" && file.type !== "image/webp") {
-			setError("Use imagens PNG ou WebP.");
-			return;
-		}
 		if (file.size < 24 || file.size > SESSION_INLINE_MEDIA_MAX_BYTES) {
 			setError("A imagem deve ter até 8 MiB.");
 			return;
@@ -60,12 +58,17 @@ export function SessionInlineInsert({
 		onBusyChange(true);
 		try {
 			const bytes = await file.arrayBuffer();
+			const mimeType = detectSessionInlineImageMime(new Uint8Array(bytes));
+			if (!mimeType) throw new Error("Use uma imagem PNG ou WebP válida, independentemente da extensão.");
+			if (bytes.byteLength !== file.size) throw new Error("O ficheiro mudou durante a leitura. Selecione-o novamente.");
 			const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))
 				.map((n) => n.toString(16).padStart(2, "0")).join("");
-			const intent = { sha256, mimeType: file.type as "image/png" | "image/webp", bytes: file.size };
+			const intent = { sha256, mimeType, bytes: bytes.byteLength };
 			const started = await requestSessionInlineUploadAction(sessionId, intent);
 			if (!started.ok) throw new Error("O upload não pôde ser iniciado: " + started.reason);
-			const parts = Math.ceil(file.size / started.chunkBytes);
+			const parts = sessionInlineUploadChunkCount(intent.bytes);
+			if (!parts || started.chunkBytes !== SESSION_INLINE_MEDIA_UPLOAD_CHUNK_BYTES)
+				throw new Error("O protocolo de upload mudou. Atualize a página e tente novamente.");
 			for (let part = 0; part < parts; part += 1) {
 				const response = await fetch("/api/edit/session-inline/upload", {
 					method: "PUT",
@@ -74,11 +77,11 @@ export function SessionInlineInsert({
 						"X-TDA-Session": sessionId,
 						"X-TDA-Upload-Id": started.uploadId,
 						"X-TDA-Content-SHA256": sha256,
-						"X-TDA-Total-Bytes": String(file.size),
+						"X-TDA-Total-Bytes": String(intent.bytes),
 						"X-TDA-Part": String(part),
 					},
-					body: bytes.slice(part * SESSION_INLINE_MEDIA_UPLOAD_CHUNK_BYTES,
-						Math.min(file.size, (part + 1) * SESSION_INLINE_MEDIA_UPLOAD_CHUNK_BYTES)),
+					body: bytes.slice(part * started.chunkBytes,
+						Math.min(intent.bytes, (part + 1) * started.chunkBytes)),
 					credentials: "same-origin",
 					cache: "no-store",
 				});
@@ -86,7 +89,15 @@ export function SessionInlineInsert({
 				setProgress(Math.round(((part + 1) / parts) * 100));
 			}
 			const finalized = await finalizeSessionInlineUploadAction(sessionId, started.uploadId, intent);
-			if (!finalized.ok) throw new Error("Falha na validação: " + finalized.reason);
+			if (!finalized.ok) {
+				if (finalized.reason === "upload_hash_mismatch")
+					throw new Error("A imagem recebida não corresponde ao ficheiro enviado. Selecione-o novamente e tente de novo.");
+				if (finalized.reason === "upload_mime_mismatch")
+					throw new Error("O formato real da imagem não corresponde ao declarado. Exporte novamente como PNG ou WebP.");
+				if (finalized.reason === "upload_size_mismatch")
+					throw new Error("O tamanho da imagem recebida não corresponde ao ficheiro enviado. Tente novamente.");
+				throw new Error("Falha na validação: " + finalized.reason);
+			}
 			// A public URL is durable, but will not serve bytes until the session is published.
 			// The title is a private-preview locator; the public reader uses the URL alone.
 			onInsert("![" + description + "](" + finalized.publicUrl + ' "tda-inline:' + finalized.assetId + '")');
@@ -122,7 +133,7 @@ export function SessionInlineInsert({
 			<button type="button" disabled={!editable || busy || available !== true || !alt.trim()}
 				onClick={() => inputRef.current?.click()}>Inserir imagem</button>
 			<input ref={inputRef} className={styles.inlineFileInput} type="file"
-				accept="image/png,image/webp" aria-label="Escolher ilustração da sessão"
+				accept="image/png,image/webp,.png,.webp" aria-label="Escolher ilustração da sessão"
 				onChange={onFileChange} />
 			{available === false ? <small role="status">Upload de imagens indisponível neste ambiente.</small> : null}
 			{busy ? <small role="status">Enviando e validando imagem: {progress}%</small> : null}

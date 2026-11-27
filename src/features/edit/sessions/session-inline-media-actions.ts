@@ -27,7 +27,10 @@ export type SessionInlineUploadFailure =
 	| "dependency_unavailable"
 	| "not_found"
 	| "media_unavailable"
-	| "invalid_payload";
+	| "invalid_payload"
+	| "upload_hash_mismatch"
+	| "upload_mime_mismatch"
+	| "upload_size_mismatch";
 
 type MediaAssetRow = Readonly<{
 	id: string;
@@ -222,11 +225,18 @@ export async function finalizeSessionInlineUploadAction(
 			height: upload.height,
 		};
 	} catch (error) {
-		console.error(
-			"Session comic upload finalization failed",
-			error instanceof Error ? error.message : "unknown_error",
-		);
-		return { ok: false, reason: "dependency_unavailable" };
+		const code = error instanceof Error ? error.message : "unknown_error";
+		console.error("Session comic upload finalization failed", code);
+		switch (code) {
+			case "SESSION_INLINE_MEDIA_UPLOAD_HASH_MISMATCH":
+				return { ok: false, reason: "upload_hash_mismatch" };
+			case "SESSION_INLINE_MEDIA_UPLOAD_MIME_MISMATCH":
+				return { ok: false, reason: "upload_mime_mismatch" };
+			case "SESSION_INLINE_MEDIA_UPLOAD_SIZE_MISMATCH":
+				return { ok: false, reason: "upload_size_mismatch" };
+			default:
+				return { ok: false, reason: "dependency_unavailable" };
+		}
 	}
 }
 

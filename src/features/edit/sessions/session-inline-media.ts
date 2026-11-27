@@ -33,6 +33,30 @@ export type SessionInlineUploadIntent = Readonly<{
 	bytes: number;
 }>;
 
+/** Browser-safe signature detection; the server still independently validates the image. */
+export function detectSessionInlineImageMime(bytes: Uint8Array): SessionInlineMediaMime | null {
+	if (bytes.length < 24) return null;
+	const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+	if (png.every((byte, index) => bytes[index] === byte)) return "image/png";
+	if (
+		bytes[0] === 0x52 && bytes[1] === 0x49 &&
+		bytes[2] === 0x46 && bytes[3] === 0x46 &&
+		bytes[8] === 0x57 && bytes[9] === 0x45 &&
+		bytes[10] === 0x42 && bytes[11] === 0x50
+	) return "image/webp";
+	return null;
+}
+
+export function sessionInlineUploadIntentMismatch(
+	actual: SessionInlineUploadIntent,
+	expected: SessionInlineUploadIntent,
+): "UPLOAD_HASH_MISMATCH" | "UPLOAD_MIME_MISMATCH" | "UPLOAD_SIZE_MISMATCH" | null {
+	if (actual.bytes !== expected.bytes) return "UPLOAD_SIZE_MISMATCH";
+	if (actual.sha256 !== expected.sha256) return "UPLOAD_HASH_MISMATCH";
+	if (actual.mimeType !== expected.mimeType) return "UPLOAD_MIME_MISMATCH";
+	return null;
+}
+
 export function isSessionInlineUploadIntent(value: unknown): value is SessionInlineUploadIntent {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
 	const intent = value as Record<string, unknown>;
