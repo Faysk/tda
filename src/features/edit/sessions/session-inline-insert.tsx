@@ -8,6 +8,7 @@ import {
 } from "./session-inline-media-actions";
 import {
 	SESSION_INLINE_MEDIA_MAX_BYTES,
+	SESSION_INLINE_MEDIA_UPLOAD_CHUNK_BYTES,
 	detectSessionInlineImageMime,
 	sessionInlineUploadChunkCount,
 } from "./session-inline-media";
@@ -66,8 +67,7 @@ export function SessionInlineInsert({
 			const started = await requestSessionInlineUploadAction(sessionId, intent);
 			if (!started.ok) throw new Error("O upload não pôde ser iniciado: " + started.reason);
 			const parts = sessionInlineUploadChunkCount(intent.bytes);
-			if (!parts || !Number.isSafeInteger(started.chunkBytes) || started.chunkBytes < 1 ||
-				Math.ceil(intent.bytes / started.chunkBytes) !== parts)
+			if (!parts || started.chunkBytes !== SESSION_INLINE_MEDIA_UPLOAD_CHUNK_BYTES)
 				throw new Error("O protocolo de upload mudou. Atualize a página e tente novamente.");
 			for (let part = 0; part < parts; part += 1) {
 				const response = await fetch("/api/edit/session-inline/upload", {
@@ -77,11 +77,11 @@ export function SessionInlineInsert({
 						"X-TDA-Session": sessionId,
 						"X-TDA-Upload-Id": started.uploadId,
 						"X-TDA-Content-SHA256": sha256,
-						"X-TDA-Total-Bytes": String(file.size),
+						"X-TDA-Total-Bytes": String(intent.bytes),
 						"X-TDA-Part": String(part),
 					},
 					body: bytes.slice(part * started.chunkBytes,
-						Math.min(file.size, (part + 1) * started.chunkBytes)),
+						Math.min(intent.bytes, (part + 1) * started.chunkBytes)),
 					credentials: "same-origin",
 					cache: "no-store",
 				});
